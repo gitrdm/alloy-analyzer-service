@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package alloy;
+
+service AlloyAnalyzer {
+    rpc analyzeModel (ModelRequest) returns (ModelResponse) {}
+}
+
+message ModelRequest {
+    string file_path = 1;
+}
+
+message ModelResponse {
+    string result = 1;
+}
