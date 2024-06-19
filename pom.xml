@@ -3,18 +3,27 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-
     <groupId>org.example</groupId>
     <artifactId>AlloyAnalyzerService</artifactId>
     <version>1.0-SNAPSHOT</version>
 
     <properties>
-        <maven.compiler.source>19</maven.compiler.source>
-        <maven.compiler.target>19</maven.compiler.target>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
     <dependencies>
+        <dependency>
+            <groupId>edu.mit.csail.sdg.alloy</groupId>
+            <artifactId>alloy</artifactId>
+            <version>6.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-jdk14</artifactId>
+            <version>1.7.25</version>
+        </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
@@ -56,16 +65,9 @@
             <artifactId>grpc-stub</artifactId>
             <version>1.64.0</version>
         </dependency>
-        <dependency>
-            <groupId>edu.mit.csail.sdg.alloy</groupId>
-            <artifactId>alloy</artifactId>
-            <version>6.0.0</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/src/main/resources/org.alloytools.alloy.dist.jar</systemPath>
-        </dependency>
-
     </dependencies>
     <build>
+        <finalName>AlloyAnalyzerService</finalName>
         <extensions>
             <extension>
                 <groupId>kr.motd.maven</groupId>
@@ -74,6 +76,27 @@
             </extension>
         </extensions>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.2.4</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <mainClass>Main</mainClass>
+                                </transformer>
+                            </transformers>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.xolstice.maven.plugins</groupId>
                 <artifactId>protobuf-maven-plugin</artifactId>
@@ -88,6 +111,29 @@
                         <goals>
                             <goal>compile</goal>
                             <goal>compile-custom</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-install-plugin</artifactId>
+                <version>2.5.2</version>
+                <executions>
+                    <execution>
+                        <id>install-external</id>
+                        <phase>validate</phase>
+                        <configuration>
+                            <file>${basedir}/lib/org.alloytools.alloy.dist.jar</file>
+                            <repositoryLayout>default</repositoryLayout>
+                            <groupId>edu.mit.csail.sdg.alloy</groupId>
+                            <artifactId>alloy</artifactId>
+                            <version>6.0.0</version>
+                            <packaging>jar</packaging>
+                            <generatePom>true</generatePom>
+                        </configuration>
+                        <goals>
+                            <goal>install-file</goal>
                         </goals>
                     </execution>
                 </executions>
