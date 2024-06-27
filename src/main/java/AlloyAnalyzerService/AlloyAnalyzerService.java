@@ -1,99 +1,55 @@
 package AlloyAnalyzerService;
 
-import static edu.mit.csail.sdg.alloy4graph.Artist.getBounds;
+import io.grpc.stub.StreamObserver;
+import filestream.FileStreamGrpc;
+import filestream.Filestream.AnalysisResult;
+import filestream.Filestream.FileChunk;
 
-import edu.mit.csail.sdg.alloy4.A4Reporter;
-import edu.mit.csail.sdg.alloy4.ConstSet;
-import edu.mit.csail.sdg.alloy4.Err;
-import edu.mit.csail.sdg.alloy4.ErrorWarning;
-import edu.mit.csail.sdg.alloy4.OurPDFWriter;
-import edu.mit.csail.sdg.alloy4.Pair;
-import edu.mit.csail.sdg.alloy4.Util;
-import edu.mit.csail.sdg.alloy4.XMLNode;
-// import edu.mit.csail.sdg.alloy4graph.DotColor; <-- modified
-// import edu.mit.csail.sdg.alloy4graph.Artist; <-- modified
+import java.io.IOException;
+
+import alloy.AlloyAnalyzerOuterClass;
+import edu.mit.csail.sdg.alloy4.*;
 import edu.mit.csail.sdg.alloy4graph.DotDirection;
 import edu.mit.csail.sdg.alloy4graph.DotPalette;
-// import edu.mit.csail.sdg.alloy4graph.DotShape; <-- modified
-// import edu.mit.csail.sdg.alloy4graph.DotStyle; <-- modified
-// import edu.mit.csail.sdg.alloy4graph.Graph; <-- modified
-// import edu.mit.csail.sdg.alloy4graph.GraphEdge; <-- modified
-// import edu.mit.csail.sdg.alloy4graph.GraphNode; <-- modified
-import edu.mit.csail.sdg.alloy4viz.AlloyAtom;
-import edu.mit.csail.sdg.alloy4viz.AlloyElement;
-import edu.mit.csail.sdg.alloy4viz.AlloyInstance;
-import edu.mit.csail.sdg.alloy4viz.AlloyModel;
-import edu.mit.csail.sdg.alloy4viz.AlloyProjection;
-import edu.mit.csail.sdg.alloy4viz.AlloyRelation;
-import edu.mit.csail.sdg.alloy4viz.AlloySet;
-import edu.mit.csail.sdg.alloy4viz.AlloyTuple;
-import edu.mit.csail.sdg.alloy4viz.AlloyType;
-// import edu.mit.csail.sdg.alloy4viz.VizState; <-- modified
-import edu.mit.csail.sdg.alloy4viz.StaticInstanceReader;
-import edu.mit.csail.sdg.alloy4viz.StaticProjector;
-// import edu.mit.csail.sdg.alloy4viz.StaticGraphMaker; <-- modified
+import edu.mit.csail.sdg.alloy4viz.*;
 import edu.mit.csail.sdg.ast.Command;
 import edu.mit.csail.sdg.ast.Module;
-import edu.mit.csail.sdg.parser.CompUtil;
-import edu.mit.csail.sdg.translator.A4Options;
-import edu.mit.csail.sdg.translator.A4Solution;
-import edu.mit.csail.sdg.translator.TranslateAlloyToKodkod;
-
-import java.awt.Color;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.io.StringReader;
-import java.io.StringWriter;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.IdentityHashMap;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
-import java.util.TreeSet;
-import alloy.AlloyAnalyzerGrpc;
-import alloy.AlloyAnalyzerOuterClass;
-import edu.mit.csail.sdg.alloy4.A4Reporter;
-import edu.mit.csail.sdg.alloy4.ErrorWarning;
-import edu.mit.csail.sdg.alloy4viz.AlloyInstance;
-import edu.mit.csail.sdg.alloy4viz.StaticInstanceReader;
-import edu.mit.csail.sdg.alloy4viz.VizGUI;
 import edu.mit.csail.sdg.ast.Sig;
+import edu.mit.csail.sdg.parser.CompUtil;
 import edu.mit.csail.sdg.translator.*;
 import io.grpc.stub.StreamObserver;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.PrintWriter;
-import java.io.StringReader;
-import java.io.StringWriter;
+import java.nio.charset.StandardCharsets;
+
+import edu.mit.csail.sdg.parser.CompModule;
+import edu.mit.csail.sdg.parser.CompUtil;
+import edu.mit.csail.sdg.alloy4.WorkerEngine;
+
+import java.awt.*;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.Iterator;
-
-import edu.mit.csail.sdg.alloy4.Err;
-import edu.mit.csail.sdg.alloy4viz.AlloyAtom;
-import edu.mit.csail.sdg.ast.Command;
-import edu.mit.csail.sdg.ast.Module;
-import edu.mit.csail.sdg.parser.CompUtil;
+import java.util.List;
+import java.util.*;
 
 class Artist {
 
-    /** The font name. */
+    /**
+     * The font name.
+     */
     private static final String fontName = "Lucida Grande";
 
-    /** The font size. */
-    private static final int    fontSize = 12;
+    /**
+     * The font size.
+     */
+    private static final int fontSize = 12;
 
-    /** The corresponding OurPDFWriater. */
-    private OurPDFWriter        pdf;
+    /**
+     * The corresponding OurPDFWriater.
+     */
+    private OurPDFWriter pdf;
 
     /**
      * Construct an empty artist.
@@ -110,32 +66,44 @@ class Artist {
         this.pdf = pdfWriter;
     }
 
-    /** Shifts the coordinate space by the given amount. */
+    /**
+     * Shifts the coordinate space by the given amount.
+     */
     public void translate(int x, int y) {
         pdf.shiftCoordinateSpace(x, y);
     }
 
-    /** Draws a circle of the given radius, centered at (0,0) */
+    /**
+     * Draws a circle of the given radius, centered at (0,0)
+     */
     public void drawCircle(int radius) {
         pdf.drawCircle(radius, false);
     }
 
-    /** Fills a circle of the given radius, centered at (0,0) */
+    /**
+     * Fills a circle of the given radius, centered at (0,0)
+     */
     public void fillCircle(int radius) {
         pdf.drawCircle(radius, true);
     }
 
-    /** Draws a line from (x1,y1) to (x2,y2) */
+    /**
+     * Draws a line from (x1,y1) to (x2,y2)
+     */
     public void drawLine(int x1, int y1, int x2, int y2) {
         pdf.drawLine(x1, y1, x2, y2);
     }
 
-    /** Changes the current color. */
+    /**
+     * Changes the current color.
+     */
     public void setColor(Color color) {
         pdf.setColor(color);
     }
 
-    /** Returns true if left<=x<=right or right<=x<=left. */
+    /**
+     * Returns true if left<=x<=right or right<=x<=left.
+     */
     private static boolean in(double left, double x, double right) {
         return (left <= x && x <= right) || (right <= x && x <= left);
     }
@@ -152,25 +120,29 @@ class Artist {
      */
     public void set(DotStyle style, double scale) {
         switch (style) {
-            case BOLD :
+            case BOLD:
                 pdf.setBoldLine();
                 return;
-            case DOTTED :
+            case DOTTED:
                 pdf.setDottedLine();
                 return;
-            case DASHED :
+            case DASHED:
                 pdf.setDashedLine();
                 return;
-            default :
+            default:
                 pdf.setNormalLine();
                 return;
         }
     }
 
-    /** Saves the current font boldness. */
+    /**
+     * Saves the current font boldness.
+     */
     private boolean fontBoldness = false;
 
-    /** Changes the current font. */
+    /**
+     * Changes the current font.
+     */
     public void setFont(boolean fontBoldness) {
         this.fontBoldness = fontBoldness;
     }
@@ -181,19 +153,25 @@ class GraphNode {
     // =============================== adjustable options
     // ==================================================
 
-    /** This determines the minimum width of a dummy node. */
-    private static final int   dummyWidth       = 30;
+    /**
+     * This determines the minimum width of a dummy node.
+     */
+    private static final int dummyWidth = 30;
 
-    /** This determines the minimum height of a dummy node. */
-    private static final int   dummyHeight      = 10;
+    /**
+     * This determines the minimum height of a dummy node.
+     */
+    private static final int dummyHeight = 10;
 
     /**
      * This determines the minimum amount of padding added above, left, right, and
      * below the text label.
      */
-    private static final int   labelPadding     = 5;
+    private static final int labelPadding = 5;
 
-    /** Color to use to show a highlighted node. */
+    /**
+     * Color to use to show a highlighted node.
+     */
     private static final Color COLOR_CHOSENNODE = Color.LIGHT_GRAY;
 
     // =============================== cached for performance
@@ -236,36 +214,36 @@ class GraphNode {
      * a user-provided annotation that will be associated with this node (can be
      * null) (need not be unique)
      */
-    public final Object         uuid;
+    public final Object uuid;
 
     /**
      * The graph that this node belongs to; must stay in sync with Graph.nodelist
      * and Graph.layerlist
      */
-    final Graph                 graph;
+    final Graph graph;
 
     /**
      * The layer that this node is in; must stay in sync with Graph.layerlist
      */
-    private int                 layer   = 0;
+    private int layer = 0;
 
     /**
      * The current position of this node in the graph's node list; must stay in sync
      * with Graph.nodelist
      */
-    int                         pos;
+    int pos;
 
     /**
      * The "in" edges not including "self" edges; must stay in sync with GraphEdge.a
      * and GraphEdge.b
      */
-    final LinkedList<GraphEdge> ins     = new LinkedList<GraphEdge>();
+    final LinkedList<GraphEdge> ins = new LinkedList<GraphEdge>();
 
     /**
      * The "out" edges not including "self" edges; must stay in sync with
      * GraphEdge.a and GraphEdge.b
      */
-    final LinkedList<GraphEdge> outs    = new LinkedList<GraphEdge>();
+    final LinkedList<GraphEdge> outs = new LinkedList<GraphEdge>();
 
     // =============================== these fields affect the computed bounds
     // ===================================================
@@ -276,7 +254,7 @@ class GraphNode {
      * When this value changes, we should invalidate the previously computed bounds
      * information.
      */
-    final LinkedList<GraphEdge> selfs    = new LinkedList<GraphEdge>();
+    final LinkedList<GraphEdge> selfs = new LinkedList<GraphEdge>();
 
     /**
      * The font boldness.
@@ -284,7 +262,7 @@ class GraphNode {
      * When this value changes, we should invalidate the previously computed bounds
      * information.
      */
-    private boolean             fontBold = false;
+    private boolean fontBold = false;
 
     /**
      * The node labels; if null or empty, then the node has no labels.
@@ -292,7 +270,7 @@ class GraphNode {
      * When this value changes, we should invalidate the previously computed bounds
      * information.
      */
-    private List<String>        labels   = null;
+    private List<String> labels = null;
 
     /**
      * The node color; never null.
@@ -300,7 +278,7 @@ class GraphNode {
      * When this value changes, we should invalidate the previously computed bounds
      * information.
      */
-    private Color               color    = Color.WHITE;
+    private Color color = Color.WHITE;
 
     /**
      * The line style; never null.
@@ -308,7 +286,7 @@ class GraphNode {
      * When this value changes, we should invalidate the previously computed bounds
      * information.
      */
-    private DotStyle            style    = DotStyle.SOLID;
+    private DotStyle style = DotStyle.SOLID;
 
     /**
      * The node shape; if null, then the node is a dummy node.
@@ -316,7 +294,7 @@ class GraphNode {
      * When this value changes, we should invalidate the previously computed bounds
      * information.
      */
-    private DotShape            shape    = DotShape.BOX;
+    private DotShape shape = DotShape.BOX;
 
     // ===================================================================================================
 
@@ -473,54 +451,56 @@ class GraphEdge {
      * a user-provided annotation that will be associated with this edge (can be
      * null) (need not be unique)
      */
-    public final Object              uuid;
+    public final Object uuid;
 
     /**
      * a user-provided annotation that will be associated with this edge (all edges
      * with same group will be highlighted together)
      */
-    public final Object              group;
+    public final Object group;
 
     /**
      * The "from" node; must stay in sync with GraphNode.ins and GraphNode.outs and
      * GraphNode.selfs
      */
-    private GraphNode                a;
+    private GraphNode a;
 
     /**
      * The "to" node; must stay in sync with GraphNode.ins and GraphNode.outs and
      * GraphNode.selfs
      */
-    private GraphNode                b;
+    private GraphNode b;
 
     /**
      * The label (can be ""); NOTE: label will be drawn only if the start node is
      * not a dummy node.
      */
-    private final String             label;
+    private final String label;
 
     /**
      * Whether to draw an arrow head on the "from" node; default is false.
      */
-    private boolean                  ahead  = false;
+    private boolean ahead = false;
 
     /**
      * Whether to draw an arrow head on the "to" node; default is true.
      */
-    private boolean                  bhead  = true;
+    private boolean bhead = true;
 
-    /** The color of the edge; default is BLACK; never null. */
-    private Color                    color  = Color.BLACK;
+    /**
+     * The color of the edge; default is BLACK; never null.
+     */
+    private Color color = Color.BLACK;
 
     /**
      * The line-style of the edge; default is SOLID; never null.
      */
-    private DotStyle                 style  = DotStyle.SOLID;
+    private DotStyle style = DotStyle.SOLID;
 
     /**
      * The edge weight; default is 1; always between 1 and 10000 inclusively.
      */
-    private int                      weight = 1;
+    private int weight = 1;
 
     // =========================================================================s====================================================
 
@@ -565,17 +545,23 @@ class GraphEdge {
         this(from, to, uuid, label, false, true, null, null, group);
     }
 
-    /** Returns the "from" node. */
+    /**
+     * Returns the "from" node.
+     */
     public GraphNode a() {
         return a;
     }
 
-    /** Returns the "to" node. */
+    /**
+     * Returns the "to" node.
+     */
     public GraphNode b() {
         return b;
     }
 
-    /** Swaps the "from" node and "to" node. */
+    /**
+     * Swaps the "from" node and "to" node.
+     */
     void reverse() {
         if (a == b)
             return;
@@ -588,7 +574,9 @@ class GraphEdge {
         b = x;
     }
 
-    /** Changes the "to" node to the given node. */
+    /**
+     * Changes the "to" node to the given node.
+     */
     void change(GraphNode newTo) {
         if (b.graph != newTo.graph)
             throw new IllegalArgumentException("You cannot draw an edge between two different graphs.");
@@ -614,12 +602,16 @@ class GraphEdge {
         return weight;
     }
 
-    /** Returns the line style; never null. */
+    /**
+     * Returns the line style; never null.
+     */
     public DotStyle style() {
         return style;
     }
 
-    /** Returns the line color; never null. */
+    /**
+     * Returns the line color; never null.
+     */
     public Color color() {
         return color;
     }
@@ -638,12 +630,16 @@ class GraphEdge {
         return bhead;
     }
 
-    /** Returns the label on this edge. */
+    /**
+     * Returns the label on this edge.
+     */
     public String label() {
         return label;
     }
 
-    /** Sets the edge weight between 1 and 10000. */
+    /**
+     * Sets the edge weight between 1 and 10000.
+     */
     public GraphEdge set(int weightBetween1And10000) {
         if (weightBetween1And10000 < 1)
             weightBetween1And10000 = 1;
@@ -663,14 +659,18 @@ class GraphEdge {
         return this;
     }
 
-    /** Sets the line style. */
+    /**
+     * Sets the line style.
+     */
     public GraphEdge set(DotStyle style) {
         if (style != null)
             this.style = style;
         return this;
     }
 
-    /** Sets the line color. */
+    /**
+     * Sets the line color.
+     */
     public GraphEdge set(Color color) {
         if (color != null)
             this.color = color;
@@ -711,57 +711,68 @@ class GraphEdge {
 }
 
 
-
 class Graph {
 
     // ================================ adjustable options
     // ========================================================================//
 
-    /** Minimum horizontal distance between adjacent nodes. */
-    static final int  xJump      = 30;
+    /**
+     * Minimum horizontal distance between adjacent nodes.
+     */
+    static final int xJump = 30;
 
-    /** Minimum vertical distance between adjacent layers. */
-    static final int  yJump      = 60;
+    /**
+     * Minimum vertical distance between adjacent layers.
+     */
+    static final int yJump = 60;
 
     /**
      * The horizontal distance between the first self-loop and the node itself.
      */
-    static final int  selfLoopA  = 40;
+    static final int selfLoopA = 40;
 
     /**
      * The horizontal padding to put on the left side of a self-loop's edge label.
      */
-    static final int  selfLoopGL = 2;
+    static final int selfLoopGL = 2;
 
     /**
      * The horizontal padding to put on the right side of a self-loop's edge label.
      */
-    static final int  selfLoopGR = 20;
+    static final int selfLoopGR = 20;
 
     // =============================== fields
     // ======================================================================================//
 
-    /** The default magnification. */
-    final double                  defaultScale;
+    /**
+     * The default magnification.
+     */
+    final double defaultScale;
 
-    /** The left edge. */
-    private int                   left             = 0;
+    /**
+     * The left edge.
+     */
+    private int left = 0;
 
-    /** The top edge. */
-    private int                   top              = 0;
+    /**
+     * The top edge.
+     */
+    private int top = 0;
 
-    /** The bottom edge. */
-    private int                   bottom           = 0;
+    /**
+     * The bottom edge.
+     */
+    private int bottom = 0;
 
     /**
      * The total width of the graph; this value is computed by layout().
      */
-    private int                   totalWidth       = 0;
+    private int totalWidth = 0;
 
     /**
      * The total height of the graph; this value is computed by layout().
      */
-    private int                   totalHeight      = 0;
+    private int totalHeight = 0;
 
 
     /**
@@ -769,33 +780,40 @@ class Graph {
      * (every node is in exactly one graph's nodelist, and appears exactly once in
      * that graph's nodelist)
      */
-    final List<GraphNode>         nodelist         = new ArrayList<GraphNode>();
+    final List<GraphNode> nodelist = new ArrayList<GraphNode>();
 
     /**
      * The list of edges; must stay in sync with GraphEdge.a.graph and
      * GraphEdge.b.graph (every edge is in exactly one graph's edgelist, and appears
      * exactly once in that graph's edgelist)
      */
-    final List<GraphEdge>         edgelist         = new ArrayList<GraphEdge>();
+    final List<GraphEdge> edgelist = new ArrayList<GraphEdge>();
 
-    /** An unmodifiable view of the list of nodes. */
-    public final List<GraphNode>  nodes            = Collections.unmodifiableList(nodelist);
+    /**
+     * An unmodifiable view of the list of nodes.
+     */
+    public final List<GraphNode> nodes = Collections.unmodifiableList(nodelist);
 
-    /** An unmodifiable view of the list of edges. */
-    public final List<GraphEdge>  edges            = Collections.unmodifiableList(edgelist);
+    /**
+     * An unmodifiable view of the list of edges.
+     */
+    public final List<GraphEdge> edges = Collections.unmodifiableList(edgelist);
 
-    /** An unmodifiable empty list. */
+    /**
+     * An unmodifiable empty list.
+     */
     private final List<GraphNode> emptyListOfNodes = Collections.unmodifiableList(new ArrayList<GraphNode>(0));
 
     // ============================================================================================================================//
 
-    /** Constructs an empty Graph object. */
+    /**
+     * Constructs an empty Graph object.
+     */
     public Graph(double defaultScale) {
         this.defaultScale = defaultScale;
     }
 
     // ============================================================================================================================//
-
 
 
     /**
@@ -816,7 +834,9 @@ class Graph {
 
     // ============================================================================================================================//
 
-    /** Returns a DOT representation of this graph. */
+    /**
+     * Returns a DOT representation of this graph.
+     */
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
@@ -863,8 +883,10 @@ enum DotColor {
     WHITE("White", "white"),
     BLACK("Black", "black");
 
-    /** The text to display. */
-    private final String       displayText;
+    /**
+     * The text to display.
+     */
+    private final String displayText;
 
     /**
      * The list of colors to use, corresponding to the current palette; if there are
@@ -873,7 +895,9 @@ enum DotColor {
      */
     private final List<String> colors = new ArrayList<String>();
 
-    /** Construct a new DotColor. */
+    /**
+     * Construct a new DotColor.
+     */
     private DotColor(String text, String... colors) {
         displayText = text;
         for (int i = 0; i < colors.length; i++) {
@@ -884,7 +908,7 @@ enum DotColor {
     /**
      * This maps each dot color name into the corresponding Java Color object.
      */
-    private static final Map<String,Color> name2color = new HashMap<String,Color>();
+    private static final Map<String, Color> name2color = new HashMap<String, Color>();
 
     /**
      * Returns the list of values that the user is allowed to select from.
@@ -981,7 +1005,9 @@ enum DotColor {
         return null;
     }
 
-    /** This value is used in writing XML. */
+    /**
+     * This value is used in writing XML.
+     */
     @Override
     public String toString() {
         return displayText;
@@ -990,54 +1016,100 @@ enum DotColor {
 
 enum DotShape {
 
-    /** Ellipse */
+    /**
+     * Ellipse
+     */
     ELLIPSE("Ellipse", "ellipse"),
-    /** Box */
+    /**
+     * Box
+     */
     BOX("Box", "box"),
-    /** Circle */
+    /**
+     * Circle
+     */
     CIRCLE("Circle", "circle"),
-    /** Egg */
+    /**
+     * Egg
+     */
     EGG("Egg", "egg"),
-    /** Triangle */
+    /**
+     * Triangle
+     */
     TRIANGLE("Triangle", "triangle"),
-    /** Diamond */
+    /**
+     * Diamond
+     */
     DIAMOND("Diamond", "diamond"),
-    /** Trapezoid */
+    /**
+     * Trapezoid
+     */
     TRAPEZOID("Trapezoid", "trapezium"),
-    /** Parallelogram */
+    /**
+     * Parallelogram
+     */
     PARALLELOGRAM("Parallelogram", "parallelogram"),
-    /** House */
+    /**
+     * House
+     */
     HOUSE("House", "house"),
-    /** Hexagon */
+    /**
+     * Hexagon
+     */
     HEXAGON("Hexagon", "hexagon"),
-    /** Octagon */
+    /**
+     * Octagon
+     */
     OCTAGON("Octagon", "octagon"),
-    /** Double Circle */
+    /**
+     * Double Circle
+     */
     DOUBLE_CIRCLE("Dbl Circle", "doublecircle"),
-    /** Double Octagon */
+    /**
+     * Double Octagon
+     */
     DOUBLE_OCTAGON("Dbl Octagon", "doubleoctagon"),
-    /** Triple Octagon */
+    /**
+     * Triple Octagon
+     */
     TRIPLE_OCTAGON("Tpl Octagon", "tripleoctagon"),
-    /** Inverted Triangle */
+    /**
+     * Inverted Triangle
+     */
     INV_TRIANGLE("Inv Triangle", "invtriangle"),
-    /** Inverted House */
+    /**
+     * Inverted House
+     */
     INV_HOUSE("Inv House", "invhouse"),
-    /** Inverted Trapezoid */
+    /**
+     * Inverted Trapezoid
+     */
     INV_TRAPEZOID("Inv Trapezoid", "invtrapezium"),
-    /** Lined Diamond */
+    /**
+     * Lined Diamond
+     */
     M_DIAMOND("Lined Diamond", "Mdiamond"),
-    /** Lined Square */
+    /**
+     * Lined Square
+     */
     M_SQUARE("Lined Square", "Msquare"),
-    /** Lined Circle */
+    /**
+     * Lined Circle
+     */
     M_CIRCLE("Lined Circle", "Mcircle");
 
-    /** The description of this line style. */
+    /**
+     * The description of this line style.
+     */
     private final String name;
 
-    /** The corresponding DOT attribute. */
+    /**
+     * The corresponding DOT attribute.
+     */
     private final String dotName;
 
-    /** Constructs a DotShape object. */
+    /**
+     * Constructs a DotShape object.
+     */
     private DotShape(String name, String dotName) {
         this.name = name;
         this.dotName = dotName;
@@ -1070,7 +1142,9 @@ enum DotShape {
         return null;
     }
 
-    /** This value is used in writing XML. */
+    /**
+     * This value is used in writing XML.
+     */
     @Override
     public String toString() {
         return name;
@@ -1080,25 +1154,39 @@ enum DotShape {
 
 enum DotStyle {
 
-    /** Solid line. */
+    /**
+     * Solid line.
+     */
     SOLID("Solid", "solid"),
 
-    /** Dashed line. */
+    /**
+     * Dashed line.
+     */
     DASHED("Dashed", "dashed"),
 
-    /** Dotted line. */
+    /**
+     * Dotted line.
+     */
     DOTTED("Dotted", "dotted"),
 
-    /** Bold line. */
+    /**
+     * Bold line.
+     */
     BOLD("Bold", "bold");
 
-    /** The description of this line style. */
+    /**
+     * The description of this line style.
+     */
     private final String name;
 
-    /** The corresponding DOT attribute. */
+    /**
+     * The corresponding DOT attribute.
+     */
     private final String dotName;
 
-    /** Constructs a DotStyle object. */
+    /**
+     * Constructs a DotStyle object.
+     */
     private DotStyle(String name, String dotName) {
         this.name = name;
         this.dotName = dotName;
@@ -1131,7 +1219,9 @@ enum DotStyle {
         return null;
     }
 
-    /** This value is used in writing XML. */
+    /**
+     * This value is used in writing XML.
+     */
     @Override
     public String toString() {
         return name;
@@ -1151,7 +1241,9 @@ class BackgroundState {
         loadInstance(originalInstance);
     }
 
-    /** Clears the current theme. */
+    /**
+     * Clears the current theme.
+     */
     public void resetTheme() {
         currentModel = originalInstance.model;
         projectedTypes.clear();
@@ -1253,10 +1345,14 @@ class BackgroundState {
         currentModel = StaticProjector.project(unprojectedInstance.model, projectedTypes);
     }
 
-    /** True if the theme has been modified since last save. */
+    /**
+     * True if the theme has been modified since last save.
+     */
     private boolean changedSinceLastSave = false;
 
-    /** True if the theme has been modified since last save. */
+    /**
+     * True if the theme has been modified since last save.
+     */
     public boolean changedSinceLastSave() {
         return changedSinceLastSave;
     }
@@ -1305,15 +1401,21 @@ class BackgroundState {
      * ===================
      */
 
-    /** The original unprojected instance. */
+    /**
+     * The original unprojected instance.
+     */
     private AlloyInstance originalInstance;
 
-    /** Returns the original unprojected model. */
+    /**
+     * Returns the original unprojected model.
+     */
     public AlloyInstance getOriginalInstance() {
         return originalInstance;
     }
 
-    /** Returns the original unprojected model. */
+    /**
+     * Returns the original unprojected model.
+     */
     public AlloyModel getOriginalModel() {
         return originalInstance.model;
     }
@@ -1323,10 +1425,14 @@ class BackgroundState {
      * ===================
      */
 
-    /** The current (possibly projected) model. */
+    /**
+     * The current (possibly projected) model.
+     */
     private AlloyModel currentModel;
 
-    /** Returns the current (possibly projected) model. */
+    /**
+     * Returns the current (possibly projected) model.
+     */
     public AlloyModel getCurrentModel() {
         return currentModel;
     }
@@ -1336,7 +1442,9 @@ class BackgroundState {
      * ===================
      */
 
-    /** The set of types we are currently projecting over. */
+    /**
+     * The set of types we are currently projecting over.
+     */
     private Set<AlloyType> projectedTypes = new TreeSet<AlloyType>();
 
     /**
@@ -1382,7 +1490,9 @@ class BackgroundState {
         }
     }
 
-    /** Removes every entry from the list of projected types. */
+    /**
+     * Removes every entry from the list of projected types.
+     */
     public void deprojectAll() {
         if (projectedTypes.size() > 0) {
             projectedTypes.clear();
@@ -1396,15 +1506,21 @@ class BackgroundState {
      * ===================
      */
 
-    /** Whether to use the original atom names. */
+    /**
+     * Whether to use the original atom names.
+     */
     private boolean useOriginalNames = false;
 
-    /** Returns whether we will use original atom names. */
+    /**
+     * Returns whether we will use original atom names.
+     */
     public boolean useOriginalName() {
         return useOriginalNames;
     }
 
-    /** Sets whether we will use original atom names or not. */
+    /**
+     * Sets whether we will use original atom names or not.
+     */
     public void useOriginalName(Boolean newValue) {
         if (newValue != null && useOriginalNames != newValue) {
             change();
@@ -1417,7 +1533,9 @@ class BackgroundState {
      * ===================
      */
 
-    /** Whether to hide private sigs/fields/relations. */
+    /**
+     * Whether to hide private sigs/fields/relations.
+     */
     private boolean hidePrivate = false;
 
     /**
@@ -1442,7 +1560,9 @@ class BackgroundState {
      * ===================
      */
 
-    /** Whether to hide meta sigs/fields/relations. */
+    /**
+     * Whether to hide meta sigs/fields/relations.
+     */
     private boolean hideMeta = true;
 
     /**
@@ -1452,7 +1572,9 @@ class BackgroundState {
         return hideMeta;
     }
 
-    /** Sets whether we will hide meta sigs/fields/relations. */
+    /**
+     * Sets whether we will hide meta sigs/fields/relations.
+     */
     public void hideMeta(Boolean newValue) {
         if (newValue != null && hideMeta != newValue) {
             change();
@@ -1465,15 +1587,21 @@ class BackgroundState {
      * ===================
      */
 
-    /** The graph's font size. */
+    /**
+     * The graph's font size.
+     */
     private int fontSize = 12;
 
-    /** Returns the font size. */
+    /**
+     * Returns the font size.
+     */
     public int getFontSize() {
         return fontSize;
     }
 
-    /** Sets the font size. */
+    /**
+     * Sets the font size.
+     */
     public void setFontSize(int n) {
         if (fontSize != n && fontSize > 0) {
             change();
@@ -1486,15 +1614,21 @@ class BackgroundState {
      * ===================
      */
 
-    /** The default node palette. */
+    /**
+     * The default node palette.
+     */
     private DotPalette nodePalette;
 
-    /** Gets the default node palette. */
+    /**
+     * Gets the default node palette.
+     */
     public DotPalette getNodePalette() {
         return nodePalette;
     }
 
-    /** Sets the default node palette. */
+    /**
+     * Sets the default node palette.
+     */
     public void setNodePalette(DotPalette x) {
         if (nodePalette != x && x != null) {
             change();
@@ -1507,15 +1641,21 @@ class BackgroundState {
      * ===================
      */
 
-    /** The default edge palette. */
+    /**
+     * The default edge palette.
+     */
     private DotPalette edgePalette;
 
-    /** Gets the default edge palette. */
+    /**
+     * Gets the default edge palette.
+     */
     public DotPalette getEdgePalette() {
         return edgePalette;
     }
 
-    /** Sets the default edge palette. */
+    /**
+     * Sets the default edge palette.
+     */
     public void setEdgePalette(DotPalette x) {
         if (edgePalette != x && x != null) {
             change();
@@ -1530,29 +1670,30 @@ class BackgroundState {
 
     // An important invariant to maintain: every map here must map null to a
     // nonnull value.
-    public final MInt           weight          = new MInt();
-    public final MString        label           = new MString();
-    public final MMap<DotColor> nodeColor       = new MMap<DotColor>();
-    public final MMap<DotColor> edgeColor       = new MMap<DotColor>();
-    public final MMap<DotStyle> nodeStyle       = new MMap<DotStyle>();
-    public final MMap<DotStyle> edgeStyle       = new MMap<DotStyle>();
-    public final MMap<DotShape> shape           = new MMap<DotShape>();
-    public final MMap<Boolean>  attribute       = new MMap<Boolean>(true, false);
-    public final MMap<Boolean>  mergeArrows     = new MMap<Boolean>(true, false);
-    public final MMap<Boolean>  constraint      = new MMap<Boolean>(true, false);
-    public final MMap<Boolean>  layoutBack      = new MMap<Boolean>(true, false);
-    public final MMap<Boolean>  edgeVisible     = new MMap<Boolean>(true, false);
-    public final MMap<Boolean>  nodeVisible     = new MMap<Boolean>(true, false);
-    public final MMap<Boolean>  number          = new MMap<Boolean>(true, false);
-    public final MMap<Boolean>  hideUnconnected = new MMap<Boolean>(true, false);
-    public final MMap<Boolean>  showAsAttr      = new MMap<Boolean>(true, false);
-    public final MMap<Boolean>  showAsLabel     = new MMap<Boolean>(true, false);
+    public final MInt weight = new MInt();
+    public final MString label = new MString();
+    public final MMap<DotColor> nodeColor = new MMap<DotColor>();
+    public final MMap<DotColor> edgeColor = new MMap<DotColor>();
+    public final MMap<DotStyle> nodeStyle = new MMap<DotStyle>();
+    public final MMap<DotStyle> edgeStyle = new MMap<DotStyle>();
+    public final MMap<DotShape> shape = new MMap<DotShape>();
+    public final MMap<Boolean> attribute = new MMap<Boolean>(true, false);
+    public final MMap<Boolean> mergeArrows = new MMap<Boolean>(true, false);
+    public final MMap<Boolean> constraint = new MMap<Boolean>(true, false);
+    public final MMap<Boolean> layoutBack = new MMap<Boolean>(true, false);
+    public final MMap<Boolean> edgeVisible = new MMap<Boolean>(true, false);
+    public final MMap<Boolean> nodeVisible = new MMap<Boolean>(true, false);
+    public final MMap<Boolean> number = new MMap<Boolean>(true, false);
+    public final MMap<Boolean> hideUnconnected = new MMap<Boolean>(true, false);
+    public final MMap<Boolean> showAsAttr = new MMap<Boolean>(true, false);
+    public final MMap<Boolean> showAsLabel = new MMap<Boolean>(true, false);
 
     public final class MInt {
 
-        private final LinkedHashMap<AlloyElement,Integer> map = new LinkedHashMap<AlloyElement,Integer>();
+        private final LinkedHashMap<AlloyElement, Integer> map = new LinkedHashMap<AlloyElement, Integer>();
 
-        private MInt() {}
+        private MInt() {
+        }
 
         private void clear() {
             map.clear();
@@ -1581,9 +1722,10 @@ class BackgroundState {
 
     public final class MString {
 
-        private final LinkedHashMap<AlloyElement,String> map = new LinkedHashMap<AlloyElement,String>();
+        private final LinkedHashMap<AlloyElement, String> map = new LinkedHashMap<AlloyElement, String>();
 
-        private MString() {}
+        private MString() {
+        }
 
         private void clear() {
             map.clear();
@@ -1613,9 +1755,9 @@ class BackgroundState {
 
     public final class MMap<T> {
 
-        private final LinkedHashMap<AlloyElement,T> map = new LinkedHashMap<AlloyElement,T>();
-        private final T                             onValue;
-        private final T                             offValue;
+        private final LinkedHashMap<AlloyElement, T> map = new LinkedHashMap<AlloyElement, T>();
+        private final T onValue;
+        private final T offValue;
 
         private MMap() {
             onValue = null;
@@ -1643,7 +1785,7 @@ class BackgroundState {
 
         public T resolve(AlloyElement obj) {
             AlloyModel m = currentModel;
-            for (AlloyElement x = obj;; x = parent(x, m)) {
+            for (AlloyElement x = obj; ; x = parent(x, m)) {
                 T v = map.get(x);
                 if (v != null)
                     return v;
@@ -1718,45 +1860,50 @@ class BackgroundState {
  */
 
 
-public class AlloyAnalyzerService extends AlloyAnalyzerGrpc.AlloyAnalyzerImplBase {    public static class SilentGraphMaker {
-        /** The theme customization. */
-        private final BackgroundState            view;
+public class AlloyAnalyzerService extends FileStreamGrpc.FileStreamImplBase {
+    public static class SilentGraphMaker {
+        /**
+         * The theme customization.
+         */
+        private final BackgroundState view;
 
         /**
          * The projected instance for the graph currently being generated.
          */
-        private final AlloyInstance              instance;
+        private final AlloyInstance instance;
 
         /**
          * The projected model for the graph currently being generated.
          */
-        private final AlloyModel                 model;
+        private final AlloyModel model;
 
         /**
          * The map that contains all edges and what the AlloyTuple that each edge
          * corresponds to.
          */
-        private final Map<GraphEdge,AlloyTuple>  edges     = new LinkedHashMap<GraphEdge,AlloyTuple>();
+        private final Map<GraphEdge, AlloyTuple> edges = new LinkedHashMap<GraphEdge, AlloyTuple>();
 
         /**
          * The map that contains all nodes and what the AlloyAtom that each node
          * corresponds to.
          */
-        private final Map<GraphNode,AlloyAtom>   nodes     = new LinkedHashMap<GraphNode,AlloyAtom>();
+        private final Map<GraphNode, AlloyAtom> nodes = new LinkedHashMap<GraphNode, AlloyAtom>();
 
         /**
          * This maps each atom to the node representing it; if an atom doesn't have a
          * node, it won't be in the map.
          */
-        private final Map<AlloyAtom,GraphNode>   atom2node = new LinkedHashMap<AlloyAtom,GraphNode>();
+        private final Map<AlloyAtom, GraphNode> atom2node = new LinkedHashMap<AlloyAtom, GraphNode>();
 
         /**
          * This stores a set of additional labels we want to add to an existing node.
          */
-        private final Map<GraphNode,Set<String>> attribs   = new LinkedHashMap<GraphNode,Set<String>>();
+        private final Map<GraphNode, Set<String>> attribs = new LinkedHashMap<GraphNode, Set<String>>();
 
-        /** The resulting graph. */
-        private final Graph                      graph;
+        /**
+         * The resulting graph.
+         */
+        private final Graph graph;
 
         public static void produceGraph(Graph graph, AlloyInstance originalInstance, BackgroundState view, AlloyProjection proj) {
             new SilentGraphMaker(graph, originalInstance, view, proj);
@@ -1769,7 +1916,7 @@ public class AlloyAnalyzerService extends AlloyAnalyzerGrpc.AlloyAnalyzerImplBas
         public SilentGraphMaker(Graph graph, AlloyInstance originalInstance, BackgroundState view, AlloyProjection proj) {
             final boolean hidePrivate = view.hidePrivate();
             final boolean hideMeta = view.hideMeta();
-            final Map<AlloyRelation,Integer> rels = new TreeMap<AlloyRelation,Integer>();
+            final Map<AlloyRelation, Integer> rels = new TreeMap<AlloyRelation, Integer>();
             this.graph = graph;
             this.view = view;
             instance = StaticProjector.project(originalInstance, proj);
@@ -1801,7 +1948,7 @@ public class AlloyAnalyzerService extends AlloyAnalyzerGrpc.AlloyAnalyzerImplBas
                 if (!(hidePrivate && rel.isPrivate))
                     if (view.attribute.resolve(rel))
                         edgesAsAttribute(rel);
-            for (Map.Entry<GraphNode,Set<String>> e : attribs.entrySet()) {
+            for (Map.Entry<GraphNode, Set<String>> e : attribs.entrySet()) {
                 Set<String> set = e.getValue();
                 if (set != null)
                     for (String s : set)
@@ -1882,7 +2029,8 @@ public class AlloyAnalyzerService extends AlloyAnalyzerGrpc.AlloyAnalyzerImplBas
                     moreLabel.append(atomname(atoms.get(i), false));
                 }
                 if (label.length() == 0) {
-                    /* label=moreLabel.toString(); */ } else {
+                    /* label=moreLabel.toString(); */
+                } else {
                     label = label + (" [" + moreLabel + "]");
                 }
             }
@@ -1933,7 +2081,9 @@ public class AlloyAnalyzerService extends AlloyAnalyzerGrpc.AlloyAnalyzerImplBas
             return count;
         }
 
-        /** Attach tuple values as attributes to existing nodes. */
+        /**
+         * Attach tuple values as attributes to existing nodes.
+         */
         private void edgesAsAttribute(AlloyRelation rel) {
             // If this relation wants to be shown as an attribute,
             // then generate the annotations and attach them to each tuple's
@@ -1952,7 +2102,7 @@ public class AlloyAnalyzerService extends AlloyAnalyzerGrpc.AlloyAnalyzerImplBas
             // then the A node would have a line that says "F: B (SET1, SET2)->C,
             // D->E"
             //
-            Map<GraphNode,String> map = new LinkedHashMap<GraphNode,String>();
+            Map<GraphNode, String> map = new LinkedHashMap<GraphNode, String>();
             for (AlloyTuple tuple : instance.relation2tuples(rel)) {
                 GraphNode start = atom2node.get(tuple.getStart());
                 if (start == null)
@@ -1973,7 +2123,7 @@ public class AlloyAnalyzerService extends AlloyAnalyzerGrpc.AlloyAnalyzerImplBas
                 if (attr.length() > 0)
                     map.put(start, attr);
             }
-            for (Map.Entry<GraphNode,String> e : map.entrySet()) {
+            for (Map.Entry<GraphNode, String> e : map.entrySet()) {
                 GraphNode node = e.getKey();
                 Set<String> list = attribs.get(node);
                 if (list == null)
@@ -1988,20 +2138,20 @@ public class AlloyAnalyzerService extends AlloyAnalyzerGrpc.AlloyAnalyzerImplBas
         /**
          * Return the label for an atom.
          *
-         * @param atom - the atom
+         * @param atom     - the atom
          * @param showSets - whether the label should also show the sets that this atom
-         *            belongs to
-         *            <p>
-         *            eg. If atom A is the 3rd atom in type T, and T's label is
-         *            "Person", then the return value would be "Person3".
-         *            <p>
-         *            eg. If atom A is the only atom in type T, and T's label is
-         *            "Person", then the return value would be "Person".
-         *            <p>
-         *            eg. If atom A is the 3rd atom in type T, and T's label is
-         *            "Person", and T belongs to the sets Set1, Set2, and Set3. However,
-         *            only Set1 and Set2 have "show in relational attribute == on", then
-         *            the return value would be "Person (Set1, Set2)".
+         *                 belongs to
+         *                 <p>
+         *                 eg. If atom A is the 3rd atom in type T, and T's label is
+         *                 "Person", then the return value would be "Person3".
+         *                 <p>
+         *                 eg. If atom A is the only atom in type T, and T's label is
+         *                 "Person", then the return value would be "Person".
+         *                 <p>
+         *                 eg. If atom A is the 3rd atom in type T, and T's label is
+         *                 "Person", and T belongs to the sets Set1, Set2, and Set3. However,
+         *                 only Set1 and Set2 have "show in relational attribute == on", then
+         *                 the return value would be "Person (Set1, Set2)".
          */
         private String atomname(AlloyAtom atom, boolean showSets) {
             String label = atom.getVizName(null, view.number.resolve(atom.getType()));
@@ -2037,201 +2187,262 @@ public class AlloyAnalyzerService extends AlloyAnalyzerGrpc.AlloyAnalyzerImplBas
 
     }
 
+    @Override
+    public StreamObserver<FileChunk> uploadAndAnalyze(StreamObserver<AnalysisResult> responseObserver) {
+        return new StreamObserver<FileChunk>() {
+            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
 
-//    public static String toDot(A4Solution solution) {
-//        StringBuilder dot = new StringBuilder();
-//        dot.append("digraph {\n");
-//
-//        for (Sig sig : solution.getAllReachableSigs()) {
-//            // Retrieve all atoms (instances) of the current signature
-//            for (Object atom : solution.eval(sig)) {
-//                System.out.println("Signature: " + sig + ", Atom: " + atom.toString());
-//            }}
-//        // Iterate over each atom and relation in the solution and build the DOT graph.
-//        for (Sig sig : solution.getAllReachableSigs()) {
-//            for (Object atom : solution.eval(sig)) {
-//                dot.append("  ").append(atom.toString()).append(";\n");
-//            }
-//        }
-
-//        for (String relation : solution.getAllReachableRelations()) {
-//            for (Object[] tuple : solution.eval(relation)) {
-//                dot.append("  ")
-//                        .append(tuple[0].toString())
-//                        .append(" -> ")
-//                        .append(tuple[1].toString())
-//                        .append(" [label=\"")
-//                        .append(relation)
-//                        .append("\"];\n");
-//            }
-//        }
-
-//        dot.append("}");
-//        return dot.toString();
-//    }
-    public static void getInstanceFromSolution(A4Solution solution) {
-        // Iterate over each signature in the solution
-        for (Sig sig : solution.getAllReachableSigs()) {
-            System.out.println("Signature: " + sig.label);
-
-            // Evaluate the signature in the solution to get all instances (atoms)
-            A4TupleSet ts = solution.eval(sig);
-            for (A4Tuple tuple : ts) {
-                System.out.println("Atom: " + tuple);
-            }
-
-            // Iterate over each field in the signature (relations)
-            for (Sig.Field field : sig.getFields()) {
-                System.out.println("Field: " + field.label);
-
-                // Evaluate the field in the solution to get all tuples
-                A4TupleSet tsField = solution.eval(field);
-                for (A4Tuple tuple : tsField) {
-                    System.out.println("Relation: " + tuple);
+            @Override
+            public void onNext(FileChunk fileChunk) {
+                try {
+                    byteArrayOutputStream.write(fileChunk.getContent().toByteArray());
+                } catch (IOException e) {
+                    responseObserver.onError(e);
                 }
             }
-        }
-    }
 
-    @Override
-    public void analyzeModel(AlloyAnalyzerOuterClass.ModelRequest request, StreamObserver<AlloyAnalyzerOuterClass.ModelResponse> responseObserver) {
-        String filePath = request.getFilePath();
-        String result;
-
-
-        // Alloy4 sends diagnostic messages and progress reports to the
-        // A4Reporter.
-        // By default, the A4Reporter ignores all these events (but you can
-        // extend the A4Reporter to display the event for the user)
-        A4Reporter rep = new A4Reporter() {
-
-            // For example, here we choose to display each "warning" by printing
-            // it to System.out
             @Override
-            public void warning(ErrorWarning msg) {
-                System.out.print("Relevance Warning:\n" + (msg.toString().trim()) + "\n\n");
-                System.out.flush();
+            public void onError(Throwable t) {
+                responseObserver.onError(t);
+            }
+
+            @Override
+            public void onCompleted() {
+                try {
+                    byteArrayOutputStream.close();
+                } catch (IOException e) {
+                    responseObserver.onError(e);
+                }
+
+                String alloyContent = byteArrayOutputStream.toString(StandardCharsets.UTF_8);
+                String result = "";
+
+                // Alloy4 sends diagnostic messages and progress reports to the
+                // A4Reporter.
+                // By default, the A4Reporter ignores all these events (but you can
+                // extend the A4Reporter to display the event for the user)
+                A4Reporter rep = new A4Reporter() {
+
+                    // For example, here we choose to display each "warning" by printing
+                    // it to System.out
+                    @Override
+                    public void warning(ErrorWarning msg) {
+                        System.out.print("Relevance Warning:\n" + (msg.toString().trim()) + "\n\n");
+                        System.out.flush();
+                    }
+                };
+
+                A4Options options = new A4Options();
+                options.solver = A4Options.SatSolver.SAT4J;
+                try {
+                    CompModule world = CompUtil.parseEverything_fromString(rep, alloyContent);
+                    int ix = 0;
+
+                    for (Command command : world.getAllCommands()) {
+                        // Execute the command
+                        System.out.println("============ Command " + command + ": ============");
+                        A4Solution solution = TranslateAlloyToKodkod.execute_command(rep, world.getAllReachableSigs(), command, options);
+
+                        while (solution != solution.next()) {
+                            solution = solution.next();
+                            // Print the outcome
+                            System.out.println(solution);
+                            // If satisfiable...
+                            if (solution.satisfiable()) {
+                                // You can query "solution" to find out the values of each set or
+                                // type.
+                                // This can be useful for debugging.
+                                //
+                                // You can also write the outcome to an XML file
+//                                solution.writeXML(filePath + ".xml");
+                                // get Alloy instance
+                                StringWriter sw = new StringWriter();
+                                PrintWriter pw = new PrintWriter(sw);
+                                solution.writeXML(pw, null, null);
+                                pw.flush();
+                                sw.flush();
+                                String txt = sw.toString();
+
+                                // Create an instance from a solution
+                                AlloyInstance originalInstance = StaticInstanceReader.parseInstance(new StringReader(txt), 0);
+                                // System.out.println("\n\noriginal instance: " + originalInstance.toString());
+
+                                // Create backgroundState for a projection
+                                BackgroundState vizState = new BackgroundState(originalInstance);
+
+                                // System.out.println("\n\nviz state: " + vizState.toString());
+
+                                // Create empty projection for the instance
+                                Map<AlloyType, AlloyAtom> map = new LinkedHashMap<AlloyType, AlloyAtom>();
+                                AlloyProjection emptyProjection = new AlloyProjection(map);
+                                // Graph
+                                Graph graph = new Graph(vizState.getFontSize() / 12.0D);
+                                SilentGraphMaker.produceGraph(graph, originalInstance, vizState, emptyProjection);
+
+                                try {
+                                    FileWriter fw = new FileWriter("filePath" + "." + ix + ".dot");
+                                    System.out.println(graph.toString());
+                                    result = graph.toString();
+                                    fw.write(graph.toString());
+                                    fw.close();
+                                } catch (IOException e) {
+                                    System.out.println("Error: unable to generate the graph");
+                                }
+                                ix += 1;
+                            }
+                        }
+                    }
+//                    A4Solution solution = TranslateAlloyToKodkod.execute_command(rep, world.getAllReachableSigs(), world.getAllCommands().get(0), options);
+//                    result = solution.toString();
+                } catch (Exception e) {
+                    result = "Error analyzing file: " + e.getMessage();
+                }
+
+                AnalysisResult analysisResult = AnalysisResult.newBuilder().setResult(result).build();
+                responseObserver.onNext(analysisResult);
+                responseObserver.onCompleted();
             }
         };
+    }
 
-
-            // Parse+typecheck the model
-            System.out.println("=========== Parsing+Typechecking " + filePath + " =============");
-            Module world = CompUtil.parseEverything_fromFile(rep, null, filePath);
-
-            // Choose some default options for how you want to execute the
-            // commands
-            A4Options options = new A4Options();
-
-            options.solver = A4Options.SatSolver.SAT4J;
-            int ix = 0;
-
-            for (Command command : world.getAllCommands()) {
-                // Execute the command
-                System.out.println("============ Command " + command + ": ============");
-                A4Solution ans = TranslateAlloyToKodkod.execute_command(rep, world.getAllReachableSigs(), command, options);
-                // Print the outcome
-                System.out.println(ans);
-                // If satisfiable...
-                if (ans.satisfiable()) {
-                    // You can query "ans" to find out the values of each set or
-                    // type.
-                    // This can be useful for debugging.
-                    //
-                    // You can also write the outcome to an XML file
-                    ans.writeXML(filePath + ".xml");
-                    // get Alloy instance
-                    StringWriter sw = new StringWriter();
-                    PrintWriter pw = new PrintWriter(sw);
-                    ans.writeXML(pw, null, null);
-                    pw.flush();
-                    sw.flush();
-                    String txt = sw.toString();
-
-                    // Create an instance from a solution
-                    AlloyInstance originalInstance = StaticInstanceReader.parseInstance(new StringReader(txt), 0);
-//                     System.out.println("\n\noriginal instance: " + originalInstance.toString());
-
-                    // Create backgroundState for a projection
-                    BackgroundState vizState = new BackgroundState(originalInstance);
-
-                    // System.out.println("\n\nviz state: " + vizState.toString());
-
-                    // Create empty projection for the instance
-                    Map<AlloyType,AlloyAtom> map = new LinkedHashMap<AlloyType,AlloyAtom>();
-                    AlloyProjection emptyProjection = new AlloyProjection(map);
-                    // Graph
-                    Graph graph = new Graph(vizState.getFontSize() / 12.0D);
-                    SilentGraphMaker.produceGraph(graph, originalInstance, vizState, emptyProjection);
-
-                    try {
-                        FileWriter fw = new FileWriter(filePath + "." + ix + ".dot");
-                        System.out.println(graph.toString());
-                        fw.write(graph.toString());
-                        fw.close();
-                    } catch (IOException e) {
-                        System.out.println("Error: unable to generate the graph");
-                    }
-                    ix += 1;
-                }
-            }
-
-
-
-
-        try {
-            System.out.print(filePath);
-            String alloyModel = new String(Files.readAllBytes(Paths.get(filePath)));
-            Module world2 = CompUtil.parseEverything_fromString(null, alloyModel);
-
-            A4Options options2 = new A4Options();
-            options2.solver = A4Options.SatSolver.SAT4J;
-//            Bitwidth=4 MaxSeq=3 SkolemDepth=1 Symmetry=20
-            options2.skolemDepth = 1;
-            options2.symmetry = 20;
-
-
-            // Execute commands in the model
-            StringBuilder resultBuilder = new StringBuilder();
-            for (Command command : world2.getAllCommands()) {
-                System.out.println(command);
-                A4Solution solution = TranslateAlloyToKodkod.execute_command(rep, world2.getAllReachableSigs(), command, options2);
-//                solution = solution;
-                while (solution != solution.next()) {
-                solution = solution.next();
-                if (solution.satisfiable()) {
-                    // You can query "ans" to find out the values of each set or type.
-                    // This can be useful for debugging.
-                    //
-                    // You can also write the outcome to an XML file
-                    solution.writeXML("alloy_example_output.xml");
-                    //
-                    // You can then visualize the XML file by calling this:
-//                    if (solution==null) {
-
-                    var v = new VizGUI(false, "alloy_example_output.xml", null);
-//                    } else {
-//                        solution.loadXML("alloy_example_output.xml", true);
+//    @Override
+//    public void analyzeModel(AlloyAnalyzerOuterClass.ModelRequest request, StreamObserver<AlloyAnalyzerOuterClass.ModelResponse> responseObserver) {
+//        String filePath = request.getFilePath();
+//        String result;
+//
+//        // Alloy4 sends diagnostic messages and progress reports to the
+//        // A4Reporter.
+//        // By default, the A4Reporter ignores all these events (but you can
+//        // extend the A4Reporter to display the event for the user)
+//        A4Reporter rep = new A4Reporter() {
+//
+//            // For example, here we choose to display each "warning" by printing
+//            // it to System.out
+//            @Override
+//            public void warning(ErrorWarning msg) {
+//                System.out.print("Relevance Warning:\n" + (msg.toString().trim()) + "\n\n");
+//                System.out.flush();
+//            }
+//        };
+//
+//
+//        // Parse+typecheck the model
+//        System.out.println("=========== Parsing+Typechecking " + filePath + " =============");
+//        Module world = CompUtil.parseEverything_fromFile(rep, null, filePath);
+//
+//        // Choose some default options for how you want to execute the
+//        // commands
+//        A4Options options = new A4Options();
+//        options.solver = A4Options.SatSolver.SAT4J;
+//
+//        int ix = 0;
+//
+//        for (Command command : world.getAllCommands()) {
+//            // Execute the command
+//            System.out.println("============ Command " + command + ": ============");
+//            A4Solution solution = TranslateAlloyToKodkod.execute_command(rep, world.getAllReachableSigs(), command, options);
+//
+//            while (solution != solution.next()) {
+//                solution = solution.next();
+//                // Print the outcome
+//                System.out.println(solution);
+//                // If satisfiable...
+//                if (solution.satisfiable()) {
+//                    // You can query "solution" to find out the values of each set or
+//                    // type.
+//                    // This can be useful for debugging.
+//                    //
+//                    // You can also write the outcome to an XML file
+//                    solution.writeXML(filePath + ".xml");
+//                    // get Alloy instance
+//                    StringWriter sw = new StringWriter();
+//                    PrintWriter pw = new PrintWriter(sw);
+//                    solution.writeXML(pw, null, null);
+//                    pw.flush();
+//                    sw.flush();
+//                    String txt = sw.toString();
+//
+//                    // Create an instance from a solution
+//                    AlloyInstance originalInstance = StaticInstanceReader.parseInstance(new StringReader(txt), 0);
+////                     System.out.println("\n\noriginal instance: " + originalInstance.toString());
+//
+//                    // Create backgroundState for a projection
+//                    BackgroundState vizState = new BackgroundState(originalInstance);
+//
+//                    // System.out.println("\n\nviz state: " + vizState.toString());
+//
+//                    // Create empty projection for the instance
+//                    Map<AlloyType, AlloyAtom> map = new LinkedHashMap<AlloyType, AlloyAtom>();
+//                    AlloyProjection emptyProjection = new AlloyProjection(map);
+//                    // Graph
+//                    Graph graph = new Graph(vizState.getFontSize() / 12.0D);
+//                    SilentGraphMaker.produceGraph(graph, originalInstance, vizState, emptyProjection);
+//
+//                    try {
+//                        FileWriter fw = new FileWriter(filePath + "." + ix + ".dot");
+//                        System.out.println(graph.toString());
+//                        fw.write(graph.toString());
+//                        fw.close();
+//                    } catch (IOException e) {
+//                        System.out.println("Error: unable to generate the graph");
 //                    }
+//                    ix += 1;
+//                }
+//            }
+//        }
 
-                    resultBuilder.append(solution.toString()).append("\n");
-                }
-//                var d = toDot(solution);
-//                System.out.println(d);
-            }
-            result = resultBuilder.toString();
-        System.out.println(result);
-            }
-        } catch (IOException | Err e) {
-            result = "Error: " + e.getMessage();
-        }
+
+//        try {
+//            System.out.print(filePath);
+//            String alloyModel = new String(Files.readAllBytes(Paths.get(filePath)));
+//            Module world2 = CompUtil.parseEverything_fromString(null, alloyModel);
+//
+//            A4Options options2 = new A4Options();
+//            options2.solver = A4Options.SatSolver.SAT4J;
+////            Bitwidth=4 MaxSeq=3 SkolemDepth=1 Symmetry=20
+//            options2.skolemDepth = 1;
+//            options2.symmetry = 20;
+//
+//
+//            // Execute commands in the model
+//            StringBuilder resultBuilder = new StringBuilder();
+//            for (Command command : world2.getAllCommands()) {
+//                System.out.println(command);
+//                A4Solution solution = TranslateAlloyToKodkod.execute_command(rep, world2.getAllReachableSigs(), command, options2);
+////                solution = solution;
+//                    if (solution.satisfiable()) {
+//                        // You can query "ans" to find out the values of each set or type.
+//                        // This can be useful for debugging.
+//                        //
+//                        // You can also write the outcome to an XML file
+//                        solution.writeXML("alloy_example_output.xml");
+//                        //
+//                        // You can then visualize the XML file by calling this:
+////                    if (solution==null) {
+//
+////
+////                    } else {
+////                        solution.loadXML("alloy_example_output.xml", true);
+////                    }
+//
+//                        resultBuilder.append(solution.toString()).append("\n");
+//                    }
+////                var d = toDot(solution);
+////                System.out.println(d);
+//                }
+//                result = resultBuilder.toString();
+//                System.out.println(result);
+//            }
+//        } catch (IOException | Err e) {
+//            result = "Error: " + e.getMessage();
+//        }
 
 //        AlloyAnalyzerOuterClass.ModelResponse response = AlloyAnalyzerOuterClass.ModelResponse.newBuilder()
 //                .setResult(result)
 //                .build();
 //        System.out.println(result);
 //        responseObserver.onNext(response);
-        responseObserver.onCompleted();
-    }
+//        responseObserver.onCompleted();
+//    }
 }
 
