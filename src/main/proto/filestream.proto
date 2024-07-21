@@ -3,12 +3,23 @@ syntax = "proto3";
 package filestream;
 
 service FileStream {
-  rpc UploadAndAnalyze(stream FileChunk) returns (AnalysisResult);
+  rpc UploadAndAnalyze(stream FileStreamRequest) returns (stream AnalysisResult);
+}
+
+message AlloyProperties {
+  string command = 1;
 }
 
 message FileChunk {
   bytes content = 1;
   int32 sequence = 2;
+}
+
+message FileStreamRequest {
+  oneof request {
+    AlloyProperties props = 1;
+    FileChunk chunk = 2;
+  }
 }
 
 message AnalysisResult {
