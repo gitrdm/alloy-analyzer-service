@@ -474,7 +474,29 @@ public class AlloyAnalyzerService extends FileStreamGrpc.FileStreamImplBase {
                         System.out.println("Solution satisfiable: " + solution.satisfiable());
                         if (solution.satisfiable()) {
                             found = true;
-                            try {
+                            StringWriter sw = new StringWriter();
+                            PrintWriter pw = new PrintWriter(sw);
+                            solution.writeXML(pw, null, null);
+                            pw.flush();
+                            sw.flush();
+                            String txt = sw.toString();
+                            AlloyInstance originalInstance = StaticInstanceReader.parseInstance(new StringReader(txt), 0);
+                            BackgroundState vizState = new BackgroundState(originalInstance);
+                            Map<AlloyType, AlloyAtom> map = new LinkedHashMap<AlloyType, AlloyAtom>();
+                            AlloyProjection emptyProjection = new AlloyProjection(map);
+                            Graph graph = new Graph(vizState.getFontSize() / 12.0D);
+                            SilentGraphMaker.produceGraph(graph, originalInstance, vizState, emptyProjection);
+                            String dot = graph.toString();
+                            String json = graphToJson(graph);
+                            AnalysisResult analysisResult = AnalysisResult.newBuilder().setDot(dot).setJson(json).build();
+                            responseObserver.onNext(analysisResult);
+                            ix++;
+                        }
+                        while (solution != solution.next()) {
+                            solution = solution.next();
+                            System.out.println("Solution satisfiable: " + solution.satisfiable());
+                            if (solution.satisfiable()) {
+                                found = true;
                                 StringWriter sw = new StringWriter();
                                 PrintWriter pw = new PrintWriter(sw);
                                 solution.writeXML(pw, null, null);
@@ -489,44 +511,8 @@ public class AlloyAnalyzerService extends FileStreamGrpc.FileStreamImplBase {
                                 SilentGraphMaker.produceGraph(graph, originalInstance, vizState, emptyProjection);
                                 String dot = graph.toString();
                                 String json = graphToJson(graph);
-                                FileWriter fw = new FileWriter("filePath." + ix + ".dot");
-                                fw.write(dot);
-                                fw.close();
                                 AnalysisResult analysisResult = AnalysisResult.newBuilder().setDot(dot).setJson(json).build();
                                 responseObserver.onNext(analysisResult);
-                            } catch (IOException e) {
-                                System.out.println("Error: unable to generate the graph");
-                            }
-                            ix++;
-                        }
-                        while (solution != solution.next()) {
-                            solution = solution.next();
-                            System.out.println("Solution satisfiable: " + solution.satisfiable());
-                            if (solution.satisfiable()) {
-                                found = true;
-                                try {
-                                    StringWriter sw = new StringWriter();
-                                    PrintWriter pw = new PrintWriter(sw);
-                                    solution.writeXML(pw, null, null);
-                                    pw.flush();
-                                    sw.flush();
-                                    String txt = sw.toString();
-                                    AlloyInstance originalInstance = StaticInstanceReader.parseInstance(new StringReader(txt), 0);
-                                    BackgroundState vizState = new BackgroundState(originalInstance);
-                                    Map<AlloyType, AlloyAtom> map = new LinkedHashMap<AlloyType, AlloyAtom>();
-                                    AlloyProjection emptyProjection = new AlloyProjection(map);
-                                    Graph graph = new Graph(vizState.getFontSize() / 12.0D);
-                                    SilentGraphMaker.produceGraph(graph, originalInstance, vizState, emptyProjection);
-                                    String dot = graph.toString();
-                                    String json = graphToJson(graph);
-                                    FileWriter fw = new FileWriter("filePath." + ix + ".dot");
-                                    fw.write(dot);
-                                    fw.close();
-                                    AnalysisResult analysisResult = AnalysisResult.newBuilder().setDot(dot).setJson(json).build();
-                                    responseObserver.onNext(analysisResult);
-                                } catch (IOException e) {
-                                    System.out.println("Error: unable to generate the graph");
-                                }
                                 ix++;
                             }
                         }
