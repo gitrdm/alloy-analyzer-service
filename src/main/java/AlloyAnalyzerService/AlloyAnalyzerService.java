@@ -22,6 +22,8 @@ import java.util.List;
 import java.util.*;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * AlloyAnalyzerService provides a gRPC-based service for analyzing Alloy models and exporting results as DOT graphs.
@@ -49,6 +51,8 @@ import com.google.gson.JsonObject;
  * </ul>
  */
 public class AlloyAnalyzerService extends FileStreamGrpc.FileStreamImplBase {
+    private static final Logger logger = LoggerFactory.getLogger(AlloyAnalyzerService.class);
+
     public static class SilentGraphMaker {
         /**
          * The theme customization.
@@ -437,41 +441,20 @@ public class AlloyAnalyzerService extends FileStreamGrpc.FileStreamImplBase {
 
                     Command commandToRun = null;
                     List<Command> commands = world.getAllCommands();
-                    System.out.println("Received command: " + inputCommand);
-                    System.out.println("Available commands in model:");
-                    String input = inputCommand.trim().toLowerCase();
+                    logger.info("Received command: {}", inputCommand);
+                    logger.info("Available commands in model:");
                     for (Command command : commands) {
-                        String label = command.label == null ? "" : command.label.trim().toLowerCase();
-                        String full = command.toString().trim().toLowerCase();
-                        System.out.println("  " + command.toString());
-                        // Full string match
-                        if (full.equals(input)) {
-                            commandToRun = command;
-                            break;
-                        }
-                        // Label-only match
-                        if (label.equals(input)) {
-                            commandToRun = command;
-                            break;
-                        }
-                        // Short form match
-                        if (input.startsWith("run ") && ("run " + label).equals(input)) {
-                            commandToRun = command;
-                            break;
-                        }
-                        if (input.startsWith("check ") && ("check " + label).equals(input)) {
-                            commandToRun = command;
-                            break;
-                        }
+                        logger.info("  {}", command.toString());
                     }
+                    commandToRun = findMatchingCommand(commands, inputCommand);
 
                     if (commandToRun != null) {
                         // Execute the command
-                        System.out.println("============ Command " + commandToRun + ": ============");
+                        logger.info("============ Command {} ============", commandToRun);
                         A4Solution solution = TranslateAlloyToKodkod.execute_command(rep, world.getAllReachableSigs(), commandToRun, options);
                         boolean found = false;
                         // Check the first solution
-                        System.out.println("Solution satisfiable: " + solution.satisfiable());
+                        logger.info("Solution satisfiable: {}", solution.satisfiable());
                         if (solution.satisfiable()) {
                             found = true;
                             StringWriter sw = new StringWriter();
@@ -494,7 +477,7 @@ public class AlloyAnalyzerService extends FileStreamGrpc.FileStreamImplBase {
                         }
                         while (solution != solution.next()) {
                             solution = solution.next();
-                            System.out.println("Solution satisfiable: " + solution.satisfiable());
+                            logger.info("Solution satisfiable: {}", solution.satisfiable());
                             if (solution.satisfiable()) {
                                 found = true;
                                 StringWriter sw = new StringWriter();
@@ -523,7 +506,7 @@ public class AlloyAnalyzerService extends FileStreamGrpc.FileStreamImplBase {
                                 "\"status\": \"NO_COUNTEREXAMPLE_FOUND\"," +
                                 " \"message\": \"Assertion holds: no counterexample found for '" + inputCommand.replace("\"", "\\\"") + "'\"," +
                                 " \"nodes\": [], \"edges\": [] }";
-                            System.out.println(resultMsg);
+                            logger.info(resultMsg);
                             AnalysisResult analysisResult = AnalysisResult.newBuilder().setDot(dot).setJson(json).build();
                             responseObserver.onNext(analysisResult);
                         }
@@ -535,20 +518,59 @@ public class AlloyAnalyzerService extends FileStreamGrpc.FileStreamImplBase {
                             sb.append("  ").append(command.toString()).append("\n");
                         }
                         String result = sb.toString();
-                        System.out.println(result);
+                        logger.error(result);
                         AnalysisResult analysisResult = AnalysisResult.newBuilder().setDot(result).setJson("").build();
                         responseObserver.onNext(analysisResult);
                     }
 //                    A4Solution solution = TranslateAlloyToKodkod.execute_command(rep, world.getAllReachableSigs(), world.getAllCommands().get(0), options);
 //                    result = solution.toString();
                 } catch (Exception e) {
-                    String result = "Error analyzing file: " + e.getMessage();
-                    AnalysisResult analysisResult = AnalysisResult.newBuilder().setDot(result).setJson("").build();
+                    String result = "ERROR: " + e.getClass().getSimpleName() + ": " + e.getMessage();
+                    logger.error(result, e);
+                    AnalysisResult analysisResult = AnalysisResult.newBuilder()
+                        .setDot(result)
+                        .setJson("{\"status\":\"ERROR\",\"message\":\"" + result.replace("\"", "\\\"") + "\"}")
+                        .build();
                     responseObserver.onNext(analysisResult);
                 }
                 responseObserver.onCompleted();
             }
+
+            // Helper for command matching
+            public static Command findMatchingCommand(List<Command> commands, String inputCommand) {
+                String input = inputCommand.trim().toLowerCase();
+                for (Command command : commands) {
+                    String label = command.label == null ? "" : command.label.trim().toLowerCase();
+                    String full = command.toString().trim().toLowerCase();
+                    // Full string match
+                    if (full.equals(input)) return command;
+                    // Label-only match
+                    if (label.equals(input)) return command;
+                    // Short form match
+                    if (input.startsWith("run ") && ("run " + label).equals(input)) return command;
+                    if (input.startsWith("check ") && ("check " + label).equals(input)) return command;
+                }
+                return null;
+            }
         };
+    }
+
+    /**
+     * Helper for command matching (refactored for testability).
+     * Accepts any list of objects with getLabel() and toString().
+     */
+    public static <T> T findMatchingLabelCommand(List<T> commands, String inputCommand, java.util.function.Function<T, String> labelGetter) {
+        String input = inputCommand.trim().toLowerCase();
+        for (T command : commands) {
+            String label = labelGetter.apply(command);
+            label = label == null ? "" : label.trim().toLowerCase();
+            String full = command.toString().trim().toLowerCase();
+            if (full.equals(input)) return command;
+            if (label.equals(input)) return command;
+            if (input.startsWith("run ") && ("run " + label).equals(input)) return command;
+            if (input.startsWith("check ") && ("check " + label).equals(input)) return command;
+        }
+        return null;
     }
 
     /**
