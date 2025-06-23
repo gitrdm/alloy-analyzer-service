@@ -400,8 +400,10 @@ public class AlloyAnalyzerService extends FileStreamGrpc.FileStreamImplBase {
 
                     Command commandToRun = null;
                     List<Command> commands = world.getAllCommands();
+                    System.out.println("Received command: " + inputCommand);
+                    System.out.println("Available commands in model:");
                     for (Command command : commands) {
-                        System.out.println(command);
+                        System.out.println("  " + command.toString());
                         if (command.toString().equalsIgnoreCase(inputCommand)) {
                             commandToRun = command;
                             break;
@@ -412,56 +414,70 @@ public class AlloyAnalyzerService extends FileStreamGrpc.FileStreamImplBase {
                         // Execute the command
                         System.out.println("============ Command " + commandToRun + ": ============");
                         A4Solution solution = TranslateAlloyToKodkod.execute_command(rep, world.getAllReachableSigs(), commandToRun, options);
-
-                        while (solution != solution.next()) {
-                            solution = solution.next();
-                            // Print the outcome
-//                            System.out.println(solution);
-                            // If satisfiable...
-                            if (solution.satisfiable()) {
-                                // You can query "solution" to find out the values of each set or
-                                // type.
-                                // This can be useful for debugging.
-                                //
-                                // You can also write the outcome to an XML file
-//                                solution.writeXML(filePath + ".xml");
-                                // get Alloy instance
+                        boolean found = false;
+                        // Check the first solution
+                        System.out.println("Solution satisfiable: " + solution.satisfiable());
+                        if (solution.satisfiable()) {
+                            found = true;
+                            try {
                                 StringWriter sw = new StringWriter();
                                 PrintWriter pw = new PrintWriter(sw);
                                 solution.writeXML(pw, null, null);
                                 pw.flush();
                                 sw.flush();
                                 String txt = sw.toString();
-
-                                // Create an instance from a solution
                                 AlloyInstance originalInstance = StaticInstanceReader.parseInstance(new StringReader(txt), 0);
-                                // System.out.println("\n\noriginal instance: " + originalInstance.toString());
-
-                                // Create backgroundState for a projection
                                 BackgroundState vizState = new BackgroundState(originalInstance);
-
-                                // System.out.println("\n\nviz state: " + vizState.toString());
-
-                                // Create empty projection for the instance
                                 Map<AlloyType, AlloyAtom> map = new LinkedHashMap<AlloyType, AlloyAtom>();
                                 AlloyProjection emptyProjection = new AlloyProjection(map);
-                                // Graph
                                 Graph graph = new Graph(vizState.getFontSize() / 12.0D);
                                 SilentGraphMaker.produceGraph(graph, originalInstance, vizState, emptyProjection);
-
+                                FileWriter fw = new FileWriter("filePath." + ix + ".dot");
+                                String result = graph.toString();
+                                fw.write(result);
+                                fw.close();
+                                AnalysisResult analysisResult = AnalysisResult.newBuilder().setResult(result).build();
+                                responseObserver.onNext(analysisResult);
+                            } catch (IOException e) {
+                                System.out.println("Error: unable to generate the graph");
+                            }
+                            ix++;
+                        }
+                        while (solution != solution.next()) {
+                            solution = solution.next();
+                            System.out.println("Solution satisfiable: " + solution.satisfiable());
+                            if (solution.satisfiable()) {
+                                found = true;
                                 try {
-                                    FileWriter fw = new FileWriter("filePath" + "." + ix + ".dot");
-//                                    System.out.println(graph.toString());
+                                    StringWriter sw = new StringWriter();
+                                    PrintWriter pw = new PrintWriter(sw);
+                                    solution.writeXML(pw, null, null);
+                                    pw.flush();
+                                    sw.flush();
+                                    String txt = sw.toString();
+                                    AlloyInstance originalInstance = StaticInstanceReader.parseInstance(new StringReader(txt), 0);
+                                    BackgroundState vizState = new BackgroundState(originalInstance);
+                                    Map<AlloyType, AlloyAtom> map = new LinkedHashMap<AlloyType, AlloyAtom>();
+                                    AlloyProjection emptyProjection = new AlloyProjection(map);
+                                    Graph graph = new Graph(vizState.getFontSize() / 12.0D);
+                                    SilentGraphMaker.produceGraph(graph, originalInstance, vizState, emptyProjection);
+                                    FileWriter fw = new FileWriter("filePath." + ix + ".dot");
                                     String result = graph.toString();
-                                    fw.write(graph.toString());
+                                    fw.write(result);
                                     fw.close();
                                     AnalysisResult analysisResult = AnalysisResult.newBuilder().setResult(result).build();
                                     responseObserver.onNext(analysisResult);
                                 } catch (IOException e) {
                                     System.out.println("Error: unable to generate the graph");
                                 }
-                                ix += 1;
+                                ix++;
                             }
+                        }
+                        if (!found) {
+                            String result = "No solution found for command: " + inputCommand;
+                            System.out.println(result);
+                            AnalysisResult analysisResult = AnalysisResult.newBuilder().setResult(result).build();
+                            responseObserver.onNext(analysisResult);
                         }
                     } else {
                         String result = "Command '" + inputCommand + "' not found.";
