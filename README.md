@@ -1,11 +1,14 @@
 # alloy-analyzer-service
 
-A gRPC-based service for analyzing Alloy models and exporting results as DOT graphs for visualization.
+This is a fork of the Alloy Analyzer Service project, which provides a gRPC-based service for analyzing Alloy models and exporting results as DOT graphs for visualization and JSON for further downstream processing. I forked this project to add a Python client example as an experiment in using LLM modeling partners and formal design methods. Since the original project was not actively maintained, I also updated the dependencies and fixed some issues to ensure it works with the latest versions of Java and Maven.
+
+I do not plan to maintain this fork long-term, but I hope it can serve as a useful example for others interested in using Alloy with gRPC and Python clients.
 
 ## Features
 - Accepts Alloy model files and analysis commands via gRPC
 - Uses the MIT Alloy Analyzer for model analysis
 - Converts analysis results to DOT format for graph visualization
+- Converts analysis results to JSON for downstream processing
 - Containerized with Docker and Docker Compose
 
 ## Requirements
