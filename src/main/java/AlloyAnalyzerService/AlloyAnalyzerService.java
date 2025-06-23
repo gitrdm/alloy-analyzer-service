@@ -439,9 +439,27 @@ public class AlloyAnalyzerService extends FileStreamGrpc.FileStreamImplBase {
                     List<Command> commands = world.getAllCommands();
                     System.out.println("Received command: " + inputCommand);
                     System.out.println("Available commands in model:");
+                    String input = inputCommand.trim().toLowerCase();
                     for (Command command : commands) {
+                        String label = command.label == null ? "" : command.label.trim().toLowerCase();
+                        String full = command.toString().trim().toLowerCase();
                         System.out.println("  " + command.toString());
-                        if (command.toString().equalsIgnoreCase(inputCommand)) {
+                        // Full string match
+                        if (full.equals(input)) {
+                            commandToRun = command;
+                            break;
+                        }
+                        // Label-only match
+                        if (label.equals(input)) {
+                            commandToRun = command;
+                            break;
+                        }
+                        // Short form match
+                        if (input.startsWith("run ") && ("run " + label).equals(input)) {
+                            commandToRun = command;
+                            break;
+                        }
+                        if (input.startsWith("check ") && ("check " + label).equals(input)) {
                             commandToRun = command;
                             break;
                         }
@@ -513,13 +531,24 @@ public class AlloyAnalyzerService extends FileStreamGrpc.FileStreamImplBase {
                             }
                         }
                         if (!found) {
-                            String result = "No solution found for command: " + inputCommand;
-                            System.out.println(result);
-                            AnalysisResult analysisResult = AnalysisResult.newBuilder().setDot("").setJson("").build();
+                            String resultMsg = "NO_COUNTEREXAMPLE_FOUND\nAssertion holds: no counterexample found for '" + inputCommand + "'";
+                            String dot = "// NO_COUNTEREXAMPLE_FOUND\n// Assertion holds: no counterexample found for '" + inputCommand + "'\n";
+                            String json = "{" +
+                                "\"status\": \"NO_COUNTEREXAMPLE_FOUND\"," +
+                                " \"message\": \"Assertion holds: no counterexample found for '" + inputCommand.replace("\"", "\\\"") + "'\"," +
+                                " \"nodes\": [], \"edges\": [] }";
+                            System.out.println(resultMsg);
+                            AnalysisResult analysisResult = AnalysisResult.newBuilder().setDot(dot).setJson(json).build();
                             responseObserver.onNext(analysisResult);
                         }
                     } else {
-                        String result = "Command '" + inputCommand + "' not found.";
+                        StringBuilder sb = new StringBuilder();
+                        sb.append("Command '").append(inputCommand).append("' not found.\n");
+                        sb.append("Available commands:\n");
+                        for (Command command : commands) {
+                            sb.append("  ").append(command.toString()).append("\n");
+                        }
+                        String result = sb.toString();
                         System.out.println(result);
                         AnalysisResult analysisResult = AnalysisResult.newBuilder().setDot(result).setJson("").build();
                         responseObserver.onNext(analysisResult);

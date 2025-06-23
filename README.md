@@ -141,3 +141,39 @@ export ALLOY_ANALYZER_SERVICE_PORT=50051
 ```
 
 - Then, you can run the client using `make run-client` or any other method you prefer.
+
+## Example: Running Alloy Analyzer Service with the Python Client
+
+To analyze an Alloy model and generate DOT, SVG, and JSONL outputs:
+
+1. **Start the gRPC server** (in a separate terminal):
+   ```sh
+   make run-server PORT=5032
+   # or
+   java -jar target/AlloyAnalyzerService.jar 5032
+   ```
+
+2. **Run the Python client with your Alloy model and command:**
+   ```sh
+   # Example for a 'run' command (produces multiple solutions):
+   ALLOY_ANALYZER_SERVICE_PORT=5032 python3 examples/use_service.py examples/alloy-analyzer-service.als "run ShowTrace"
+
+   # Example for a 'check' command (for assertions):
+   ALLOY_ANALYZER_SERVICE_PORT=5032 python3 examples/use_service.py examples/alloy-analyzer-service.als "check IsNeverStuck"
+   ```
+
+3. **Output files:**
+   - For each solution, you will get:
+     - `alloy-analyzer-service.0.dot`, `alloy-analyzer-service.1.dot`, ... (DOT files)
+     - `alloy-analyzer-service.0.svg`, `alloy-analyzer-service.1.svg`, ... (SVG images)
+   - All JSON outputs are appended as lines to `alloy-analyzer-service.jsonl` (JSON Lines format, one solution per line).
+   - For assertion checks with no counterexample, the files will contain a status/message indicating the assertion holds.
+
+4. **Visualize DOT or SVG files:**
+   - Open `.dot` files with [Graphviz Online](https://dreampuf.github.io/GraphvizOnline/) or any Graphviz tool.
+   - Open `.svg` files in your browser or image viewer.
+
+5. **Process JSONL output:**
+   - Each line in the `.jsonl` file is a JSON object for one solution, suitable for LLM or automation workflows.
+
+**Tip:** You can use any Alloy model and command; just adjust the file and command arguments accordingly.

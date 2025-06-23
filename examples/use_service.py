@@ -33,6 +33,7 @@ def run_alloy_analysis(filename, command="run showHello for 1"):
     requests.extend(file_chunks(filename))
     responses = stub.UploadAndAnalyze(iter(requests))
     print("Analysis results:")
+    response_idx = 0
     for response in responses:
         if hasattr(response, 'dot') and hasattr(response, 'json'):
             print("DOT output:")
@@ -41,22 +42,20 @@ def run_alloy_analysis(filename, command="run showHello for 1"):
             print(response.json)
             # Save DOT file in the same directory as the input .als file
             als_path = Path(filename)
-            dot_path = als_path.with_suffix('.dot')
-            dot_path = als_path.parent / dot_path.name
+            dot_path = als_path.with_name(f"{als_path.stem}.{response_idx}.dot")
             with open(dot_path, 'w') as f:
                 f.write(response.dot)
             # Generate SVG from DOT using Graphviz (requires 'dot' installed)
-            svg_path = als_path.with_suffix('.svg')
-            svg_path = als_path.parent / svg_path.name
+            svg_path = als_path.with_name(f"{als_path.stem}.{response_idx}.svg")
             os.system(f'dot -Tsvg "{dot_path}" -o "{svg_path}"')
             print(f"DOT file saved to: {dot_path}")
             print(f"SVG file generated at: {svg_path}")
-            # Save JSON output to file in the same directory as the input .als file
-            json_path = als_path.with_suffix('.json')
-            json_path = als_path.parent / json_path.name
-            with open(json_path, 'w') as f:
-                f.write(response.json)
-            print(f"JSON file saved to: {json_path}")
+            # Append JSON output as a line to a .jsonl file
+            jsonl_path = als_path.with_suffix('.jsonl')
+            with open(jsonl_path, 'a') as f:
+                f.write(response.json.strip().replace('\n', ' ') + '\n')
+            print(f"JSONL line appended to: {jsonl_path}")
+            response_idx += 1
         else:
             # fallback for old server
             print(getattr(response, 'result', response))
