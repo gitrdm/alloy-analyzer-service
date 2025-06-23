@@ -17,3 +17,10 @@ buildNumber.properties
 .project
 # JDT-specific (Eclipse Java Development Tools)
 .classpath
+
+formal/states/
+
+# Python cache and generated files
+examples/__pycache__/
+examples/filestream_pb2.py
+examples/filestream_pb2_grpc.py

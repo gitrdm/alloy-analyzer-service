@@ -1,0 +1,84 @@
+@startuml project_structure
+' Alloy Analyzer Service - Detailed Project Structure with Key Methods and Data Flow
+
+' Top-level description
+note top of Main
+  Entry point: Starts gRPC server and registers AlloyAnalyzerService
+end note
+
+package "src.main.java" {
+  [Main] <<entrypoint>>
+  package "AlloyAnalyzerService" {
+    [AlloyAnalyzerService] <<service>>
+    note right of AlloyAnalyzerService
+      Key methods:
+      - uploadAndAnalyze(StreamObserver)
+      - onNext(FileStreamRequest)
+      - onCompleted()
+      - parseEverything_fromString()
+      - execute_command()
+      - writeXML()
+      Data flow:
+      1. Receives streamed Alloy model and command
+      2. Parses and analyzes model
+      3. Converts result to DOT using DotExporter
+      4. Streams result back to client
+    end note
+    package "DotExporter" {
+      [Artist] <<utility>>
+      [BackgroundState] <<state>>
+      [DotColor] <<enum>>
+      [DotShape] <<enum>>
+      [DotStyle] <<enum>>
+      [Graph] <<model>>
+      note right of Graph
+        Key methods:
+        - addNode()
+        - addEdge()
+        - layout()
+        Data flow:
+        - Receives Alloy instance data
+        - Builds graph structure for visualization
+      end note
+      [GraphEdge] <<model>>
+      [GraphNode] <<model>>
+    }
+    [AlloyAnalyzerService] --> [Artist] : uses
+    [AlloyAnalyzerService] --> [BackgroundState] : uses
+    [AlloyAnalyzerService] --> [DotColor] : uses
+    [AlloyAnalyzerService] --> [DotShape] : uses
+    [AlloyAnalyzerService] --> [DotStyle] : uses
+    [AlloyAnalyzerService] --> [Graph] : uses
+    [AlloyAnalyzerService] --> [GraphEdge] : uses
+    [AlloyAnalyzerService] --> [GraphNode] : uses
+  }
+  [Main] --> [AlloyAnalyzerService]
+}
+
+package "src.main.proto" {
+  [filestream.proto] <<proto>>
+  note right of filestream.proto
+    Defines gRPC service and messages for file upload and analysis.
+    Key method:
+    - UploadAndAnalyze(stream FileStreamRequest) returns (stream AnalysisResult)
+  end note
+}
+
+[AlloyAnalyzerService] ..> [filestream.proto] : gRPC API
+[AlloyAnalyzerService] ..> "alloy.jar" : Alloy Analyzer
+note right of "alloy.jar"
+  MIT Alloy Analyzer library for model parsing and analysis.
+end note
+
+' Relationships within DotExporter
+[Graph] --> [GraphNode] : contains
+[Graph] --> [GraphEdge] : contains
+[GraphEdge] --> [GraphNode] : connects
+[GraphNode] --> [DotColor] : uses
+[GraphNode] --> [DotShape] : uses
+[GraphEdge] --> [DotStyle] : uses
+[BackgroundState] --> [DotColor] : uses
+[BackgroundState] --> [DotStyle] : uses
+[BackgroundState] --> [DotShape] : uses
+
+@enduml

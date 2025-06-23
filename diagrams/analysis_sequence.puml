@@ -1,0 +1,26 @@
+@startuml analysis_sequence
+actor Client
+participant "Main (gRPC Server)" as Main
+participant "AlloyAnalyzerService" as Service
+participant "Alloy Analyzer (alloy.jar)" as Alloy
+participant "DotExporter" as DotExporter
+
+Client -> Main: gRPC connect
+Client -> Service: UploadAndAnalyze(request)
+Service -> Service: onNext(FileStreamRequest)
+Service -> Service: onCompleted()
+Service -> Alloy: parseEverything_fromString()
+Service -> Alloy: getAllCommands()
+Service -> Alloy: execute_command()
+Service -> Alloy: writeXML()
+Service -> Service: parseInstance()
+Service -> DotExporter: BackgroundState/Graph export
+Service -> Client: AnalysisResult (DOT/Result)
+
+note right of Service
+- Receives streamed Alloy model and command
+- Parses and analyzes model
+- Converts result to DOT using DotExporter
+- Streams result back to client
+end note
+@enduml
