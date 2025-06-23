@@ -198,6 +198,36 @@ public class GraphEdge {
     }
 
     /**
+     * Returns the label for this edge.
+     */
+    public String getLabel() {
+        return label == null ? "" : label;
+    }
+
+    /**
+     * Returns the color for this edge as a hex string (e.g., #RRGGBB).
+     */
+    public String getColor() {
+        if (color == null) return "#000000";
+        int rgb = color.getRGB() & 0xFFFFFF;
+        return String.format("#%06x", rgb);
+    }
+
+    /**
+     * Returns the source node (from).
+     */
+    public GraphNode getA() {
+        return a;
+    }
+
+    /**
+     * Returns the target node (to).
+     */
+    public GraphNode getB() {
+        return b;
+    }
+
+    /**
      * Sets the edge weight between 1 and 10000.
      */
     public GraphEdge set(int weightBetween1And10000) {

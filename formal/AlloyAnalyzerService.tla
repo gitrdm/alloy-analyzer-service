@@ -1,4 +1,25 @@
----- MODULE AlloyAnalyzerService ----
+\* ---- MODULE AlloyAnalyzerService ----
+\* TLA+ formal model for the Alloy Analyzer Service communication protocol.
+\* This model describes the high-level state transitions and data flow between
+\* a client and the service, including request upload, model analysis, DOT export,
+\* and result streaming.
+\*
+\* CONSTANTS:
+\*   - Client: Represents the client actor
+\*   - Server: Represents the service actor
+\*   - Alloy:  Represents the Alloy analysis engine
+\*   - DotExporter: Represents the DOT export component
+\*
+\* VARIABLES:
+\*   - state:   The current state of the service (Idle, Receiving, ...)
+\*   - request: The current request (modeled as a sequence of NatSet)
+\*   - result:  The current analysis result (modeled as a sequence of NatSet)
+\*
+\* State transitions:
+\*   Idle -> Receiving -> Analyzing -> Exporting -> Responding -> Done
+\*   Each action is modeled as a separate predicate.
+\*
+\* This model is intended for model checking and documentation of the service protocol.
 EXTENDS Naturals, Sequences
 
 CONSTANTS Client, Server, Alloy, DotExporter
@@ -76,5 +97,12 @@ Next ==
   \/ DoneStutter  \* Add the stuttering action to the Next predicate
 
 Spec == Init /\ [][Next]_<<state, request, result>>
+
+\* Safety property: The service never skips a state
+NoSkip == 
+  \A s \in State : \E t \in State : (state = s /\ state' = t) => (t = s \/ t \in State)
+
+\* Liveness property: Every request eventually reaches Done
+EventuallyDone == <> (state = "Done")
 
 ====

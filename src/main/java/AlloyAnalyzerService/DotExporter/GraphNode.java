@@ -262,8 +262,6 @@ public class GraphNode {
         return this;
     }
 
-    // ===================================================================================================
-
     /**
      * Returns a DOT representation of this node (or "" if this is a dummy node)
      */
@@ -297,5 +295,29 @@ public class GraphNode {
         out.append(", style = \"filled, " + style.getDotText() + "\"");
         out.append("]\n");
         return out.toString();
+    }
+
+    /**
+     * Returns the node label as a single string (concatenates all labels with \n).
+     */
+    public String getLabel() {
+        if (labels == null || labels.isEmpty()) return "";
+        return String.join("\n", labels);
+    }
+
+    /**
+     * Returns the node color as a hex string (e.g., #RRGGBB).
+     */
+    public String getColor() {
+        if (color == null) return "#000000";
+        int rgb = color.getRGB() & 0xFFFFFF;
+        return String.format("#%06x", rgb);
+    }
+
+    /**
+     * Returns the node shape as a string.
+     */
+    public String getShape() {
+        return shape == null ? "ellipse" : shape.toString().toLowerCase();
     }
 }

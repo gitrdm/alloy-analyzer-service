@@ -23,5 +23,6 @@ message FileStreamRequest {
 }
 
 message AnalysisResult {
-  string result = 1;
+  string dot = 1;   // DOT graph output
+  string json = 2;  // JSON graph output (nodes, edges, attributes)
 }

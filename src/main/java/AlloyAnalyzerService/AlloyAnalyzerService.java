@@ -20,7 +20,34 @@ import edu.mit.csail.sdg.parser.CompModule;
 import java.io.*;
 import java.util.List;
 import java.util.*;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 
+/**
+ * AlloyAnalyzerService provides a gRPC-based service for analyzing Alloy models and exporting results as DOT graphs.
+ * <p>
+ * This class implements the FileStream gRPC service, allowing clients to upload Alloy model files and analysis commands,
+ * and receive streamed analysis results (such as DOT format for graph visualization).
+ * </p>
+ *
+ * <h2>Usage</h2>
+ * <ul>
+ *   <li>Start the service using the provided Main class.</li>
+ *   <li>Send Alloy model files and commands using a compatible gRPC client.</li>
+ *   <li>Receive streamed analysis results, including DOT output for visualization.</li>
+ * </ul>
+ *
+ * <h2>Key Methods</h2>
+ * <ul>
+ *   <li>{@link #uploadAndAnalyze(StreamObserver)}: Handles the main gRPC call for model analysis.</li>
+ * </ul>
+ *
+ * <h2>See Also</h2>
+ * <ul>
+ *   <li>filestream.proto: gRPC service definition</li>
+ *   <li>README.md: Project overview and usage</li>
+ * </ul>
+ */
 public class AlloyAnalyzerService extends FileStreamGrpc.FileStreamImplBase {
     public static class SilentGraphMaker {
         /**
@@ -348,6 +375,16 @@ public class AlloyAnalyzerService extends FileStreamGrpc.FileStreamImplBase {
 
     }
 
+    /**
+     * Handles the UploadAndAnalyze gRPC call.
+     * <p>
+     * Receives a stream of FileStreamRequest messages (containing AlloyProperties and file chunks),
+     * parses and analyzes the Alloy model, and streams back AnalysisResult messages (DOT output or errors).
+     * </p>
+     *
+     * @param responseObserver the stream observer for sending analysis results to the client
+     * @return a stream observer for receiving file upload and command requests
+     */
     @Override
     public StreamObserver<FileStreamRequest> uploadAndAnalyze(StreamObserver<AnalysisResult> responseObserver) {
         return new StreamObserver<FileStreamRequest>() {
@@ -432,11 +469,12 @@ public class AlloyAnalyzerService extends FileStreamGrpc.FileStreamImplBase {
                                 AlloyProjection emptyProjection = new AlloyProjection(map);
                                 Graph graph = new Graph(vizState.getFontSize() / 12.0D);
                                 SilentGraphMaker.produceGraph(graph, originalInstance, vizState, emptyProjection);
+                                String dot = graph.toString();
+                                String json = graphToJson(graph);
                                 FileWriter fw = new FileWriter("filePath." + ix + ".dot");
-                                String result = graph.toString();
-                                fw.write(result);
+                                fw.write(dot);
                                 fw.close();
-                                AnalysisResult analysisResult = AnalysisResult.newBuilder().setResult(result).build();
+                                AnalysisResult analysisResult = AnalysisResult.newBuilder().setDot(dot).setJson(json).build();
                                 responseObserver.onNext(analysisResult);
                             } catch (IOException e) {
                                 System.out.println("Error: unable to generate the graph");
@@ -461,11 +499,12 @@ public class AlloyAnalyzerService extends FileStreamGrpc.FileStreamImplBase {
                                     AlloyProjection emptyProjection = new AlloyProjection(map);
                                     Graph graph = new Graph(vizState.getFontSize() / 12.0D);
                                     SilentGraphMaker.produceGraph(graph, originalInstance, vizState, emptyProjection);
+                                    String dot = graph.toString();
+                                    String json = graphToJson(graph);
                                     FileWriter fw = new FileWriter("filePath." + ix + ".dot");
-                                    String result = graph.toString();
-                                    fw.write(result);
+                                    fw.write(dot);
                                     fw.close();
-                                    AnalysisResult analysisResult = AnalysisResult.newBuilder().setResult(result).build();
+                                    AnalysisResult analysisResult = AnalysisResult.newBuilder().setDot(dot).setJson(json).build();
                                     responseObserver.onNext(analysisResult);
                                 } catch (IOException e) {
                                     System.out.println("Error: unable to generate the graph");
@@ -476,25 +515,53 @@ public class AlloyAnalyzerService extends FileStreamGrpc.FileStreamImplBase {
                         if (!found) {
                             String result = "No solution found for command: " + inputCommand;
                             System.out.println(result);
-                            AnalysisResult analysisResult = AnalysisResult.newBuilder().setResult(result).build();
+                            AnalysisResult analysisResult = AnalysisResult.newBuilder().setDot("").setJson("").build();
                             responseObserver.onNext(analysisResult);
                         }
                     } else {
                         String result = "Command '" + inputCommand + "' not found.";
                         System.out.println(result);
-                        AnalysisResult analysisResult = AnalysisResult.newBuilder().setResult(result).build();
+                        AnalysisResult analysisResult = AnalysisResult.newBuilder().setDot(result).setJson("").build();
                         responseObserver.onNext(analysisResult);
                     }
 //                    A4Solution solution = TranslateAlloyToKodkod.execute_command(rep, world.getAllReachableSigs(), world.getAllCommands().get(0), options);
 //                    result = solution.toString();
                 } catch (Exception e) {
                     String result = "Error analyzing file: " + e.getMessage();
-                    AnalysisResult analysisResult = AnalysisResult.newBuilder().setResult(result).build();
+                    AnalysisResult analysisResult = AnalysisResult.newBuilder().setDot(result).setJson("").build();
                     responseObserver.onNext(analysisResult);
                 }
                 responseObserver.onCompleted();
             }
         };
+    }
+
+    /**
+     * Utility to convert a Graph to a simple JSON representation (nodes/edges/attributes).
+     */
+    private static String graphToJson(Graph graph) {
+        JsonObject root = new JsonObject();
+        JsonArray nodes = new JsonArray();
+        JsonArray edges = new JsonArray();
+        for (GraphNode n : graph.nodes) {
+            JsonObject node = new JsonObject();
+            node.addProperty("id", n.uuid != null ? n.uuid.toString() : n.toString());
+            node.addProperty("label", n.getLabel());
+            node.addProperty("color", n.getColor());
+            node.addProperty("shape", n.getShape());
+            nodes.add(node);
+        }
+        for (GraphEdge e : graph.edges) {
+            JsonObject edge = new JsonObject();
+            edge.addProperty("from", e.getA().uuid != null ? e.getA().uuid.toString() : e.getA().toString());
+            edge.addProperty("to", e.getB().uuid != null ? e.getB().uuid.toString() : e.getB().toString());
+            edge.addProperty("label", e.getLabel());
+            edge.addProperty("color", e.getColor());
+            edges.add(edge);
+        }
+        root.add("nodes", nodes);
+        root.add("edges", edges);
+        return root.toString();
     }
 }
 

@@ -1,4 +1,24 @@
-// Complete and verified Alloy model with robust checks.
+// Alloy model for the Alloy Analyzer Service communication protocol.
+// This model describes the service as a state machine, with explicit signatures
+// for states, requests, results, and transitions. Each predicate models a possible
+// state transition in the service, corresponding to the gRPC communication flow.
+//
+// Signatures:
+//   - State:      The possible states of the service (Idle, Receiving, ...)
+//   - Request:    Represents a client request (model + command)
+//   - Result:     Represents the analysis result (e.g., DOT output)
+//   - Service:    The service state, including current state, request, and result
+//   - Step:       A transition from one service state to another
+//
+// Predicates:
+//   - Init:                 Initial state (Idle, no request/result)
+//   - ClientSendsRequest:   Client uploads a request
+//   - ServerReceivesRequest: Service receives the request
+//   - ServerAnalyzesModel:  Service analyzes the model
+//   - ServerExportsDOT:     Service exports the result to DOT
+//   - ServerResponds:       Service streams the result back to the client
+//
+// This model is intended for documentation and formal analysis of the service protocol.
 
 // --- Signatures (Confirmed to be working) ---
 abstract sig State {}
@@ -18,14 +38,15 @@ sig Step {
     post_state: Service
 }
 
-
 // --- Predicates for State Transitions ---
+// Initial state: service is idle, no request or result
 pred Init(s: Service) {
     s.state = Idle
     no s.request
     no s.result
 }
 
+// Client uploads a request, service moves to Receiving
 pred ClientSendsRequest(st: Step) {
     st.pre_state.state = Idle
     st.post_state.state = Receiving
@@ -33,6 +54,7 @@ pred ClientSendsRequest(st: Step) {
     st.post_state.result = st.pre_state.result
 }
 
+// Service receives the request, moves to Analyzing
 pred ServerReceivesRequest(st: Step) {
     st.pre_state.state = Receiving
     st.post_state.state = Analyzing
@@ -40,6 +62,7 @@ pred ServerReceivesRequest(st: Step) {
     st.post_state.result = st.pre_state.result
 }
 
+// Service analyzes the model, produces a result, moves to Exporting
 pred ServerAnalyzesModel(st: Step) {
     st.pre_state.state = Analyzing
     st.post_state.state = Exporting
@@ -47,6 +70,7 @@ pred ServerAnalyzesModel(st: Step) {
     some st.post_state.result
 }
 
+// Service exports the result to DOT, moves to Responding
 pred ServerExportsDOT(st: Step) {
     st.pre_state.state = Exporting
     st.post_state.state = Responding
@@ -54,6 +78,7 @@ pred ServerExportsDOT(st: Step) {
     st.post_state.result = st.pre_state.result
 }
 
+// Service streams the result back to the client, moves to Done
 pred ServerResponds(st: Step) {
     st.pre_state.state = Responding
     st.post_state.state = Done
