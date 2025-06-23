@@ -39,6 +39,18 @@ def run_alloy_analysis(filename, command="run showHello for 1"):
             print(response.dot)
             print("\nJSON output:")
             print(response.json)
+            # Save DOT file in the same directory as the input .als file
+            als_path = Path(filename)
+            dot_path = als_path.with_suffix('.dot')
+            dot_path = als_path.parent / dot_path.name
+            with open(dot_path, 'w') as f:
+                f.write(response.dot)
+            # Generate SVG from DOT using Graphviz (requires 'dot' installed)
+            svg_path = als_path.with_suffix('.svg')
+            svg_path = als_path.parent / svg_path.name
+            os.system(f'dot -Tsvg "{dot_path}" -o "{svg_path}"')
+            print(f"DOT file saved to: {dot_path}")
+            print(f"SVG file generated at: {svg_path}")
         else:
             # fallback for old server
             print(getattr(response, 'result', response))
