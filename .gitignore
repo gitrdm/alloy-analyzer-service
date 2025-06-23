@@ -24,3 +24,5 @@ formal/states/
 examples/__pycache__/
 examples/filestream_pb2.py
 examples/filestream_pb2_grpc.py
+examples/*.dot
+examples/*.svg
