@@ -51,6 +51,12 @@ def run_alloy_analysis(filename, command="run showHello for 1"):
             os.system(f'dot -Tsvg "{dot_path}" -o "{svg_path}"')
             print(f"DOT file saved to: {dot_path}")
             print(f"SVG file generated at: {svg_path}")
+            # Save JSON output to file in the same directory as the input .als file
+            json_path = als_path.with_suffix('.json')
+            json_path = als_path.parent / json_path.name
+            with open(json_path, 'w') as f:
+                f.write(response.json)
+            print(f"JSON file saved to: {json_path}")
         else:
             # fallback for old server
             print(getattr(response, 'result', response))
